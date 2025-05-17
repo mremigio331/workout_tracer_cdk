@@ -17,6 +17,10 @@
     ]
   },
   "context": {
+    "region": "us-west-2",
+    "hostedZoneId": "Z0048277QSFDZUS8YF7T",
+    "domainName": "workouttracer.com",
+    "callbackUrls": ["https://workouttracer.com/", "http://localhost:8080/"],
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:target-partitions": [
