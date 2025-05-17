@@ -21,6 +21,7 @@
     "hostedZoneId": "Z0048277QSFDZUS8YF7T",
     "domainName": "workouttracer.com",
     "callbackUrls": ["https://workouttracer.com/", "http://localhost:8080/"],
+    "certificateArn": "arn:aws:acm:us-east-1:851753231474:certificate/69b38048-6359-46ee-8c44-efc85cbe1090",
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:target-partitions": [

@@ -22,20 +22,21 @@ export class AuthStack extends Stack {
   public readonly userPool: cognito.UserPool;
   public readonly userPoolClient: cognito.UserPoolClient;
   public readonly userPoolDomain: cognito.UserPoolDomain;
+  public readonly identityPool: cognito.CfnIdentityPool;
 
   constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id, props);
 
     const { callbackUrls } = props.configs;
 
-    // ✅ Use official Powertools Lambda Layer for Python
+    // Powertools Lambda Layer for Python
     const powertoolsLayer = lambda.LayerVersion.fromLayerVersionArn(
       this,
       'PowertoolsLayer',
       `arn:aws:lambda:${this.region}:017000801446:layer:AWSLambdaPowertoolsPythonV2:53`
     );
 
-    // ✅ Lambda function with Powertools layer
+    // Lambda function with Powertools layer
     const userEventLogger = new lambda.Function(this, 'UserEventLogger', {
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'index.handler',
@@ -52,10 +53,10 @@ export class AuthStack extends Stack {
       },
     });
 
-    // ✅ Allow Lambda to write to DynamoDB table
+    // Allow Lambda to write to DynamoDB table
     props.userTable.grantWriteData(userEventLogger);
 
-    // ✅ User Pool
+    // User Pool: only email and name required
     this.userPool = new cognito.UserPool(this, 'WorkoutTracerUserPool', {
       userPoolName: 'workout-tracer-website-user-pool',
       selfSignUpEnabled: true,
@@ -64,6 +65,7 @@ export class AuthStack extends Stack {
       },
       standardAttributes: {
         fullname: { required: true, mutable: true },
+        email: { required: true, mutable: false },
       },
       passwordPolicy: {
         minLength: 8,
@@ -75,7 +77,6 @@ export class AuthStack extends Stack {
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
       removalPolicy: RemovalPolicy.DESTROY,
     });
-
 
     this.userPool.addTrigger(
       cognito.UserPoolOperation.POST_CONFIRMATION,
@@ -99,9 +100,7 @@ export class AuthStack extends Stack {
           scopes: [
             cognito.OAuthScope.EMAIL,
             cognito.OAuthScope.OPENID,
-            cognito.OAuthScope.PHONE,
             cognito.OAuthScope.PROFILE,
-            cognito.OAuthScope.COGNITO_ADMIN,
           ],
           callbackUrls,
           logoutUrls: callbackUrls,
@@ -116,6 +115,17 @@ export class AuthStack extends Stack {
       },
     });
 
+    // Federated Identity Pool
+    this.identityPool = new cognito.CfnIdentityPool(this, 'IdentityPool', {
+      allowUnauthenticatedIdentities: false,
+      cognitoIdentityProviders: [
+        {
+          clientId: this.userPoolClient.userPoolClientId,
+          providerName: this.userPool.userPoolProviderName,
+        },
+      ],
+    });
+
     new CfnOutput(this, 'UserPoolId', {
       value: this.userPool.userPoolId,
     });
@@ -126,6 +136,10 @@ export class AuthStack extends Stack {
 
     new CfnOutput(this, 'UserPoolDomain', {
       value: `${this.userPoolDomain.domainName}.auth.${Stack.of(this).region}.amazoncognito.com`,
+    });
+
+    new CfnOutput(this, 'IdentityPoolId', {
+      value: this.identityPool.ref,
     });
   }
 }
