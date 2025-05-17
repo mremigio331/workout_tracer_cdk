@@ -64,8 +64,6 @@ export class AuthStack extends Stack {
       },
       standardAttributes: {
         fullname: { required: true, mutable: true },
-        nickname: { required: true, mutable: true },
-        preferredUsername: { required: true, mutable: true },
       },
       passwordPolicy: {
         minLength: 8,
@@ -78,7 +76,7 @@ export class AuthStack extends Stack {
       removalPolicy: RemovalPolicy.DESTROY,
     });
 
-    // ✅ Attach Lambda triggers
+
     this.userPool.addTrigger(
       cognito.UserPoolOperation.POST_CONFIRMATION,
       userEventLogger
@@ -88,7 +86,6 @@ export class AuthStack extends Stack {
       userEventLogger
     );
 
-    // ✅ App Client
     this.userPoolClient = new cognito.UserPoolClient(
       this,
       'WorkoutTracerUserPoolClient',
@@ -112,7 +109,6 @@ export class AuthStack extends Stack {
       }
     );
 
-    // ✅ Cognito Domain
     this.userPoolDomain = new cognito.UserPoolDomain(this, 'CognitoDomain', {
       userPool: this.userPool,
       cognitoDomain: {
@@ -120,7 +116,6 @@ export class AuthStack extends Stack {
       },
     });
 
-    // ✅ Outputs
     new CfnOutput(this, 'UserPoolId', {
       value: this.userPool.userPoolId,
     });

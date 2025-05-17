@@ -15,24 +15,25 @@ def handler(event, context):
 
     if event['triggerSource'] == 'PostConfirmation_ConfirmSignUp':
         user_attrs = event['request']['userAttributes']
+        logger.info(f"User attributes: {user_attrs}")
 
         user_id = user_attrs['sub']
         email = user_attrs.get('email')
-        nickname = user_attrs.get('nickname', 'unknown')
+        name = user_attrs.get('name', 'unknown')
 
         item = {
             'PK': {'S': f'#USER:{user_id}'},
             'SK': {'S': 'PROFILE'},
             'email': {'S': email},
-            'nickname': {'S': nickname},
+            'name': {'S': name},
             'created_at': {'S': datetime.utcnow().isoformat()}
         }
 
         try:
             dynamodb.put_item(TableName=table_name, Item=item)
-            logger.info(f"✅ Added user to DynamoDB: {user_id}", extra={"user_id": user_id})
+            logger.info(f"Added user to DynamoDB: {name}")
         except Exception as e:
-            logger.error("❌ Failed to write user to DynamoDB", extra={"error": str(e), "user_id": user_id})
+            logger.error(f"Failed to write user to DynamoDB: {str(e)}")
     else:
         logger.warning(f"Unsupported triggerSource: {event['triggerSource']}")
 

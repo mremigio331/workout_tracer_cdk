@@ -6,7 +6,6 @@ import { AuthStack } from '../lib/stacks/auth-stack';
 const app = new cdk.App();
 const callbackUrls = app.node.tryGetContext('callbackUrls') as string[];
 
-// Define region once
 const env = { region: 'us-west-2' };
 
 const databaseStack = new DatabaseStack(app, 'WorkoutTracer-DatabaseStack', {
