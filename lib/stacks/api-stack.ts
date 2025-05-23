@@ -10,10 +10,11 @@ import {
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
 import * as path from "path";
+import { Fn } from "aws-cdk-lib";
 
 interface ApiStackProps extends StackProps {
   assetPath?: string;
-  environmentType?: string; // "local" or "pipeline"
+  environmentType?: string;
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
 }
@@ -55,23 +56,35 @@ export class ApiStack extends Stack {
     const layer = new lambda.LayerVersion(this, "WorkoutTracerApiLayer", {
       code: lambda.Code.fromAsset(
         assetPath
-          ? path.join(assetPath, "layer")
-          : path.join(__dirname, "../../../workout_tracer_api/layer"),
+          ? path.join(assetPath, "lambda_layer.zip")
+          : path.join(
+              __dirname,
+              "../../../workout_tracer_api/lambda_layer.zip",
+            ),
       ),
       compatibleRuntimes: [lambda.Runtime.PYTHON_3_11],
       description: "WorkoutTracer Lambda layer with dependencies",
     });
 
-    // Define Lambda function
-    const apiHandler = new lambda.Function(this, "WorkoutTracerApiHandler", {
-      functionName: "WorkoutTracerApiHandler",
+    const applicationLogsLogGroup = new logs.LogGroup(
+      this,
+      "WorkoutTracerApplicationLogs",
+      {
+        logGroupName: "/aws/lambda/WorkoutTracerApi",
+        retention: logs.RetentionDays.INFINITE,
+      },
+    );
+
+    const workoutTracerApi = new lambda.Function(this, "WorkoutTracerApi", {
+      functionName: "WorkoutTracerApi",
       runtime: lambda.Runtime.PYTHON_3_11,
-      handler: "main.handler",
+      handler: "app.handler",
       code: lambda.Code.fromAsset(
         assetPath || path.join(__dirname, "../../../workout_tracer_api"),
       ),
       timeout: Duration.seconds(10),
       layers: [layer],
+      logGroup: applicationLogsLogGroup,
     });
 
     // CloudWatch Log Group for API Gateway access logs
@@ -95,7 +108,6 @@ export class ApiStack extends Stack {
       },
     );
 
-    // Create API Gateway and attach Lambda integration
     this.api = new apigw.RestApi(this, "WorkoutTracerRestApi", {
       restApiName: "WorkoutTracerApi",
       deployOptions: {
@@ -121,7 +133,7 @@ export class ApiStack extends Stack {
       },
     });
 
-    const rootIntegration = new apigw.LambdaIntegration(apiHandler);
+    const rootIntegration = new apigw.LambdaIntegration(workoutTracerApi);
     this.api.root.addMethod("GET", rootIntegration);
   }
 }

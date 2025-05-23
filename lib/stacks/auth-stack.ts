@@ -12,10 +12,10 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as path from "path";
 
 interface AuthStackProps extends StackProps {
-  configs: {
-    callbackUrls: string[];
-  };
+  callbackUrls: string[];
   userTable: dynamodb.ITable;
+  assetPath?: string;
+  environmentType?: string;
 }
 
 export class AuthStack extends Stack {
@@ -27,9 +27,25 @@ export class AuthStack extends Stack {
   constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id, props);
 
-    const { callbackUrls } = props.configs;
+    const { callbackUrls, assetPath } = props;
 
-    // Powertools Lambda Layer for Python
+    const layer = new lambda.LayerVersion(
+      this,
+      "WorkoutTracerCognitoLambdaLayer",
+      {
+        code: lambda.Code.fromAsset(
+          assetPath
+            ? path.join(assetPath, "lambda_layer.zip")
+            : path.join(
+                __dirname,
+                "../../../workout_tracer_api/lambda_layer.zip",
+              ),
+        ),
+        compatibleRuntimes: [lambda.Runtime.PYTHON_3_11],
+        description: "WorkoutTracer Lambda layer with dependencies",
+      },
+    );
+
     const powertoolsLayer = lambda.LayerVersion.fromLayerVersionArn(
       this,
       "PowertoolsLayer",
@@ -39,16 +55,15 @@ export class AuthStack extends Stack {
     const userEventLogger = new lambda.Function(this, "UserEventLogger", {
       functionName: "WorkoutTracer-CognitoUserEventLogger",
       runtime: lambda.Runtime.PYTHON_3_11,
-      handler: "index.handler",
+      handler: "lambdas.cognito_user_creator.handler",
       code: lambda.Code.fromAsset(
-        path.join(__dirname, "../../lambda/user-event-logger"),
+        assetPath || path.join(__dirname, "../../../workout_tracer_api"),
       ),
       timeout: Duration.seconds(10),
       logRetention: 7,
-      layers: [powertoolsLayer],
+      layers: [layer, powertoolsLayer],
       environment: {
         TABLE_NAME: props.userTable.tableName,
-        POWERTOOLS_SERVICE_NAME: "user-signup",
         POWERTOOLS_LOG_LEVEL: "INFO",
       },
     });
@@ -138,6 +153,13 @@ export class AuthStack extends Stack {
 
     new CfnOutput(this, "IdentityPoolId", {
       value: this.identityPool.ref,
+    });
+
+    // Re-add export for UserPool ARN
+    new CfnOutput(this, "UserPoolArn", {
+      value: this.userPool.userPoolArn,
+      exportName:
+        "WorkoutTracer-AuthStack:ExportsOutputFnGetAttWorkoutTracerUserPool41FF804BArn310CAD46",
     });
   }
 }
