@@ -17,11 +17,12 @@ import * as path from "path";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 
 interface WebsiteStackProps extends StackProps {
-  domainName: string;
-  hostedZoneId: string;
-  certificateArn: string;
   assetPath?: string;
+  certificateArn: string;
+  domainName: string;
   environmentType?: string;
+  hostedZoneId: string;
+  stage: string;
 }
 
 export class WebsiteStack extends Stack {
@@ -37,6 +38,7 @@ export class WebsiteStack extends Stack {
       certificateArn,
       assetPath,
       environmentType,
+      stage,
     } = props;
 
     const hostedZone = route53.HostedZone.fromHostedZoneAttributes(
@@ -56,7 +58,7 @@ export class WebsiteStack extends Stack {
 
     const loggingBucket = new s3.Bucket(
       this,
-      "WorkoutTracer-AccessLogsBucket",
+      `WorkoutTracer-AccessLogsBucket-${stage}`,
       {
         removalPolicy: RemovalPolicy.RETAIN,
         encryption: s3.BucketEncryption.S3_MANAGED,
@@ -110,8 +112,8 @@ export class WebsiteStack extends Stack {
       .replace(/^\.+/, "")
       .replace(/\.+$/, "");
 
-    this.siteBucket = new s3.Bucket(this, "WorkoutTracer-WebsiteBucket", {
-      bucketName: validBucketName,
+    this.siteBucket = new s3.Bucket(this, `WorkoutTracer-WebsiteBucket-${stage}`, {
+      bucketName: `workouttracer-website-bucket-${stage.toLowerCase()}`,
       publicReadAccess: false,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: RemovalPolicy.DESTROY,

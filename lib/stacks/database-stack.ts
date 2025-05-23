@@ -2,14 +2,22 @@ import { Stack, StackProps, RemovalPolicy } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 
+interface DatabaseStackProps extends StackProps {
+  assetPath?: string;
+  environmentType?: string;
+  stage: string;
+}
+
 export class DatabaseStack extends Stack {
   public readonly table: dynamodb.Table;
 
-  constructor(scope: Construct, id: string, props?: StackProps) {
+  constructor(scope: Construct, id: string, props: DatabaseStackProps) {
     super(scope, id, props);
 
-    this.table = new dynamodb.Table(this, "WorkoutTracer-UserTable", {
-      tableName: "WorkoutTracer-UserTable",
+    const { stage } = props;
+
+    this.table = new dynamodb.Table(this, `WorkoutTracer-UserTable-${stage}`, {
+      tableName: `WorkoutTracerUserTable-${stage}`,
       partitionKey: {
         name: "PK",
         type: dynamodb.AttributeType.STRING,

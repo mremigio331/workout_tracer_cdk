@@ -17,6 +17,7 @@ interface ApiStackProps extends StackProps {
   environmentType?: string;
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
+  stage: string; // Add stage prop
 }
 
 export class ApiStack extends Stack {
@@ -26,9 +27,9 @@ export class ApiStack extends Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    const { assetPath, environmentType, userPool, userPoolClient } = props;
+    const { assetPath, environmentType, userPool, userPoolClient, stage } = props;
 
-    const apiGwLogsRole = new iam.Role(this, "ApiGatewayCloudWatchRole", {
+    const apiGwLogsRole = new iam.Role(this, `WorkoutTracer-ApiGatewayCloudWatchRole-${stage}`, {
       assumedBy: new iam.ServicePrincipal("apigateway.amazonaws.com"),
       inlinePolicies: {
         ApiGwCloudWatchLogsPolicy: new iam.PolicyDocument({
@@ -49,11 +50,11 @@ export class ApiStack extends Stack {
       },
     });
 
-    new apigw.CfnAccount(this, "ApiGatewayAccount", {
+    new apigw.CfnAccount(this, `WorkoutTracer-ApiGatewayAccount-${stage}`, {
       cloudWatchRoleArn: apiGwLogsRole.roleArn,
     });
 
-    const layer = new lambda.LayerVersion(this, "WorkoutTracerApiLayer", {
+    const layer = new lambda.LayerVersion(this, `WorkoutTracer-ApiLayer-${stage}`, {
       code: lambda.Code.fromAsset(
         assetPath
           ? path.join(assetPath, "lambda_layer.zip")
@@ -68,15 +69,15 @@ export class ApiStack extends Stack {
 
     const applicationLogsLogGroup = new logs.LogGroup(
       this,
-      "WorkoutTracerApplicationLogs",
+      `WorkoutTracer-ApplicationLogs-${stage}`,
       {
-        logGroupName: "/aws/lambda/WorkoutTracerApi",
+        logGroupName: `/aws/lambda/WorkoutTracerApi-${stage}`,
         retention: logs.RetentionDays.INFINITE,
       },
     );
 
-    const workoutTracerApi = new lambda.Function(this, "WorkoutTracerApi", {
-      functionName: "WorkoutTracerApi",
+    const workoutTracerApi = new lambda.Function(this, `WorkoutTracer-ApiLambda-${stage}`, {
+      functionName: `WorkoutTracerApi-${stage}`,
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: "app.handler",
       code: lambda.Code.fromAsset(
@@ -88,15 +89,15 @@ export class ApiStack extends Stack {
     });
 
     // CloudWatch Log Group for API Gateway access logs
-    const accessLogGroup = new logs.LogGroup(this, "WorkoutTracerServiceLogs", {
-      logGroupName: "/aws/apigateway/WorkoutTracerServiceLogs",
+    const accessLogGroup = new logs.LogGroup(this, `WorkoutTracer-ServiceLogs-${stage}`, {
+      logGroupName: `/aws/apigateway/WorkoutTracerServiceLogs-${stage}`,
       retention: logs.RetentionDays.INFINITE,
     });
 
     // Identity Pool setup
     this.identityPool = new cognito.CfnIdentityPool(
       this,
-      "WorkoutTracerIdentityPool",
+      `WorkoutTracer-IdentityPool-${stage}`,
       {
         allowUnauthenticatedIdentities: false,
         cognitoIdentityProviders: [
@@ -108,8 +109,8 @@ export class ApiStack extends Stack {
       },
     );
 
-    this.api = new apigw.RestApi(this, "WorkoutTracerRestApi", {
-      restApiName: "WorkoutTracerApi",
+    this.api = new apigw.RestApi(this, `WorkoutTracer-RestApi-${stage}`, {
+      restApiName: `WorkoutTracerApi-${stage}`,
       deployOptions: {
         accessLogDestination: new apigw.LogGroupLogDestination(accessLogGroup),
         accessLogFormat: apigw.AccessLogFormat.custom(

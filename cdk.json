@@ -18,16 +18,10 @@
   },
   "context": {
     "region": "us-west-2",
-    "hostedZoneId": "Z0048277QSFDZUS8YF7T",
-    "domainName": "workouttracer.com",
-    "callbackUrls": ["https://workouttracer.com/", "http://localhost:8080/"],
-    "websiteCertificateArn": "arn:aws:acm:us-east-1:851753231474:certificate/69b38048-6359-46ee-8c44-efc85cbe1090",
-    "apiCertificateArn": "arn:aws:acm:us-west-2:851753231474:certificate/458f0ab5-da81-442d-b3e8-faf0f5a7c71e",
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:target-partitions": [
-      "aws",
-      "aws-cn"
+      "aws"
     ],
     "@aws-cdk-containers/ecs-service-extensions:enableDefaultLogDriver": true,
     "@aws-cdk/aws-ec2:uniqueImdsv2TemplateName": true,

@@ -12,10 +12,11 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as path from "path";
 
 interface AuthStackProps extends StackProps {
-  callbackUrls: string[];
-  userTable: dynamodb.ITable;
   assetPath?: string;
+  callbackUrls: string[];
   environmentType?: string;
+  stage: string;
+  userTable: dynamodb.ITable;
 }
 
 export class AuthStack extends Stack {
@@ -27,11 +28,11 @@ export class AuthStack extends Stack {
   constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id, props);
 
-    const { callbackUrls, assetPath } = props;
+    const { callbackUrls, assetPath, userTable, stage } = props;
 
     const layer = new lambda.LayerVersion(
       this,
-      "WorkoutTracerCognitoLambdaLayer",
+      `WorkoutTracer-CognitoLambdaLayer-${stage}`,
       {
         code: lambda.Code.fromAsset(
           assetPath
@@ -48,12 +49,12 @@ export class AuthStack extends Stack {
 
     const powertoolsLayer = lambda.LayerVersion.fromLayerVersionArn(
       this,
-      "PowertoolsLayer",
+      `WorkoutTracer-PowertoolsLayer-${stage}`,
       `arn:aws:lambda:${this.region}:017000801446:layer:AWSLambdaPowertoolsPythonV2:53`,
     );
 
-    const userEventLogger = new lambda.Function(this, "UserEventLogger", {
-      functionName: "WorkoutTracer-CognitoUserEventLogger",
+    const userEventLogger = new lambda.Function(this, `WorkoutTracer-UserEventLogger-${stage}`, {
+      functionName: `WorkoutTracer-CognitoUserEventLogger-${stage}`,
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: "lambdas.cognito_user_creator.handler",
       code: lambda.Code.fromAsset(
@@ -63,15 +64,15 @@ export class AuthStack extends Stack {
       logRetention: 7,
       layers: [layer, powertoolsLayer],
       environment: {
-        TABLE_NAME: props.userTable.tableName,
+        TABLE_NAME: userTable.tableName,
         POWERTOOLS_LOG_LEVEL: "INFO",
       },
     });
 
-    props.userTable.grantWriteData(userEventLogger);
+    userTable.grantWriteData(userEventLogger);
 
-    this.userPool = new cognito.UserPool(this, "WorkoutTracerUserPool", {
-      userPoolName: "WorkoutTracerUserPool",
+    this.userPool = new cognito.UserPool(this, `WorkoutTracer-UserPool-${stage}`, {
+      userPoolName: `WorkoutTracerUserPool-${stage}`,
       selfSignUpEnabled: true,
       signInAliases: {
         email: true,
@@ -102,7 +103,7 @@ export class AuthStack extends Stack {
 
     this.userPoolClient = new cognito.UserPoolClient(
       this,
-      "WorkoutTracerUserPoolClient",
+      `WorkoutTracer-UserPoolClient-${stage}`,
       {
         userPool: this.userPool,
         generateSecret: false,
@@ -121,15 +122,15 @@ export class AuthStack extends Stack {
       },
     );
 
-    this.userPoolDomain = new cognito.UserPoolDomain(this, "CognitoDomain", {
+    this.userPoolDomain = new cognito.UserPoolDomain(this, `WorkoutTracer-CognitoDomain-${stage}`, {
       userPool: this.userPool,
       cognitoDomain: {
-        domainPrefix: "workouttracer",
+        domainPrefix: `workouttracer-${stage.toLowerCase()}`,
       },
     });
 
     // Federated Identity Pool
-    this.identityPool = new cognito.CfnIdentityPool(this, "IdentityPool", {
+    this.identityPool = new cognito.CfnIdentityPool(this, `WorkoutTracer-IdentityPool-${stage}`, {
       allowUnauthenticatedIdentities: false,
       cognitoIdentityProviders: [
         {
@@ -139,27 +140,25 @@ export class AuthStack extends Stack {
       ],
     });
 
-    new CfnOutput(this, "UserPoolId", {
+    new CfnOutput(this, `WorkoutTracer-UserPoolId-${stage}`, {
       value: this.userPool.userPoolId,
     });
 
-    new CfnOutput(this, "UserPoolClientId", {
+    new CfnOutput(this, `WorkoutTracer-UserPoolClientId-${stage}`, {
       value: this.userPoolClient.userPoolClientId,
     });
 
-    new CfnOutput(this, "UserPoolDomain", {
+    new CfnOutput(this, `WorkoutTracer-UserPoolDomain-${stage}`, {
       value: `${this.userPoolDomain.domainName}.auth.${Stack.of(this).region}.amazoncognito.com`,
     });
 
-    new CfnOutput(this, "IdentityPoolId", {
+    new CfnOutput(this, `WorkoutTracer-IdentityPoolId-${stage}`, {
       value: this.identityPool.ref,
     });
 
-    // Re-add export for UserPool ARN
-    new CfnOutput(this, "UserPoolArn", {
+    new CfnOutput(this, `WorkoutTracer-UserPoolArn-${stage}`, {
       value: this.userPool.userPoolArn,
-      exportName:
-        "WorkoutTracer-AuthStack:ExportsOutputFnGetAttWorkoutTracerUserPool41FF804BArn310CAD46",
+      exportName: `WorkoutTracer-AuthStack-UserPoolArn-${stage}`,
     });
   }
 }
