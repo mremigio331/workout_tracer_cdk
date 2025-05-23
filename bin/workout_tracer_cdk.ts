@@ -29,10 +29,14 @@ for (const stage of Object.keys(envConfig)) {
   } = config;
 
   // Database stack
-  const databaseStack = new DatabaseStack(app, `WorkoutTracer-DatabaseStack-${stage}`, {
-    env: awsEnv,
-    stage,
-  });
+  const databaseStack = new DatabaseStack(
+    app,
+    `WorkoutTracer-DatabaseStack-${stage}`,
+    {
+      env: awsEnv,
+      stage,
+    },
+  );
 
   // Auth stack
   const authStack = new AuthStack(app, `WorkoutTracer-AuthStack-${stage}`, {

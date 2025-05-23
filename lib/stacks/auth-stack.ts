@@ -53,44 +53,52 @@ export class AuthStack extends Stack {
       `arn:aws:lambda:${this.region}:017000801446:layer:AWSLambdaPowertoolsPythonV2:53`,
     );
 
-    const userEventLogger = new lambda.Function(this, `WorkoutTracer-UserEventLogger-${stage}`, {
-      functionName: `WorkoutTracer-CognitoUserEventLogger-${stage}`,
-      runtime: lambda.Runtime.PYTHON_3_11,
-      handler: "lambdas.cognito_user_creator.handler",
-      code: lambda.Code.fromAsset(
-        assetPath || path.join(__dirname, "../../../workout_tracer_api"),
-      ),
-      timeout: Duration.seconds(10),
-      logRetention: 7,
-      layers: [layer, powertoolsLayer],
-      environment: {
-        TABLE_NAME: userTable.tableName,
-        POWERTOOLS_LOG_LEVEL: "INFO",
+    const userEventLogger = new lambda.Function(
+      this,
+      `WorkoutTracer-UserEventLogger-${stage}`,
+      {
+        functionName: `WorkoutTracer-CognitoUserEventLogger-${stage}`,
+        runtime: lambda.Runtime.PYTHON_3_11,
+        handler: "lambdas.cognito_user_creator.handler",
+        code: lambda.Code.fromAsset(
+          assetPath || path.join(__dirname, "../../../workout_tracer_api"),
+        ),
+        timeout: Duration.seconds(10),
+        logRetention: 7,
+        layers: [layer, powertoolsLayer],
+        environment: {
+          TABLE_NAME: userTable.tableName,
+          POWERTOOLS_LOG_LEVEL: "INFO",
+        },
       },
-    });
+    );
 
     userTable.grantWriteData(userEventLogger);
 
-    this.userPool = new cognito.UserPool(this, `WorkoutTracer-UserPool-${stage}`, {
-      userPoolName: `WorkoutTracerUserPool-${stage}`,
-      selfSignUpEnabled: true,
-      signInAliases: {
-        email: true,
+    this.userPool = new cognito.UserPool(
+      this,
+      `WorkoutTracer-UserPool-${stage}`,
+      {
+        userPoolName: `WorkoutTracerUserPool-${stage}`,
+        selfSignUpEnabled: true,
+        signInAliases: {
+          email: true,
+        },
+        standardAttributes: {
+          fullname: { required: true, mutable: true },
+          email: { required: true, mutable: false },
+        },
+        passwordPolicy: {
+          minLength: 8,
+          requireLowercase: true,
+          requireUppercase: true,
+          requireDigits: true,
+          requireSymbols: false,
+        },
+        accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
+        removalPolicy: RemovalPolicy.DESTROY,
       },
-      standardAttributes: {
-        fullname: { required: true, mutable: true },
-        email: { required: true, mutable: false },
-      },
-      passwordPolicy: {
-        minLength: 8,
-        requireLowercase: true,
-        requireUppercase: true,
-        requireDigits: true,
-        requireSymbols: false,
-      },
-      accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
-      removalPolicy: RemovalPolicy.DESTROY,
-    });
+    );
 
     this.userPool.addTrigger(
       cognito.UserPoolOperation.POST_CONFIRMATION,
@@ -122,23 +130,31 @@ export class AuthStack extends Stack {
       },
     );
 
-    this.userPoolDomain = new cognito.UserPoolDomain(this, `WorkoutTracer-CognitoDomain-${stage}`, {
-      userPool: this.userPool,
-      cognitoDomain: {
-        domainPrefix: `workouttracer-${stage.toLowerCase()}`,
+    this.userPoolDomain = new cognito.UserPoolDomain(
+      this,
+      `WorkoutTracer-CognitoDomain-${stage}`,
+      {
+        userPool: this.userPool,
+        cognitoDomain: {
+          domainPrefix: `workouttracer-${stage.toLowerCase()}`,
+        },
       },
-    });
+    );
 
     // Federated Identity Pool
-    this.identityPool = new cognito.CfnIdentityPool(this, `WorkoutTracer-IdentityPool-${stage}`, {
-      allowUnauthenticatedIdentities: false,
-      cognitoIdentityProviders: [
-        {
-          clientId: this.userPoolClient.userPoolClientId,
-          providerName: this.userPool.userPoolProviderName,
-        },
-      ],
-    });
+    this.identityPool = new cognito.CfnIdentityPool(
+      this,
+      `WorkoutTracer-IdentityPool-${stage}`,
+      {
+        allowUnauthenticatedIdentities: false,
+        cognitoIdentityProviders: [
+          {
+            clientId: this.userPoolClient.userPoolClientId,
+            providerName: this.userPool.userPoolProviderName,
+          },
+        ],
+      },
+    );
 
     new CfnOutput(this, `WorkoutTracer-UserPoolId-${stage}`, {
       value: this.userPool.userPoolId,

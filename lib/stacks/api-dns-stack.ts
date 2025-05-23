@@ -21,7 +21,14 @@ export class ApiDnsStack extends Stack {
   constructor(scope: Construct, id: string, props: ApiDnsStackProps) {
     super(scope, id, props);
 
-    const { stage, rootDomainName, apiDomainName, hostedZoneId, api, certificateArn } = props;
+    const {
+      stage,
+      rootDomainName,
+      apiDomainName,
+      hostedZoneId,
+      api,
+      certificateArn,
+    } = props;
 
     const hostedZone = route53.HostedZone.fromHostedZoneAttributes(
       this,
@@ -48,10 +55,14 @@ export class ApiDnsStack extends Stack {
       },
     );
 
-    new apigw.BasePathMapping(this, `WorkoutTracer-ApiBasePathMapping-${stage}`, {
-      domainName: customDomain,
-      restApi: api,
-    });
+    new apigw.BasePathMapping(
+      this,
+      `WorkoutTracer-ApiBasePathMapping-${stage}`,
+      {
+        domainName: customDomain,
+        restApi: api,
+      },
+    );
 
     new route53.ARecord(this, `WorkoutTracer-ApiAliasRecord-${stage}`, {
       recordName: "api",

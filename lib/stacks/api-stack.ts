@@ -27,45 +27,54 @@ export class ApiStack extends Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    const { assetPath, environmentType, userPool, userPoolClient, stage } = props;
+    const { assetPath, environmentType, userPool, userPoolClient, stage } =
+      props;
 
-    const apiGwLogsRole = new iam.Role(this, `WorkoutTracer-ApiGatewayCloudWatchRole-${stage}`, {
-      assumedBy: new iam.ServicePrincipal("apigateway.amazonaws.com"),
-      inlinePolicies: {
-        ApiGwCloudWatchLogsPolicy: new iam.PolicyDocument({
-          statements: [
-            new iam.PolicyStatement({
-              effect: iam.Effect.ALLOW,
-              actions: [
-                "logs:CreateLogGroup",
-                "logs:CreateLogStream",
-                "logs:DescribeLogGroups",
-                "logs:DescribeLogStreams",
-                "logs:PutLogEvents",
-              ],
-              resources: ["*"],
-            }),
-          ],
-        }),
+    const apiGwLogsRole = new iam.Role(
+      this,
+      `WorkoutTracer-ApiGatewayCloudWatchRole-${stage}`,
+      {
+        assumedBy: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+        inlinePolicies: {
+          ApiGwCloudWatchLogsPolicy: new iam.PolicyDocument({
+            statements: [
+              new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                actions: [
+                  "logs:CreateLogGroup",
+                  "logs:CreateLogStream",
+                  "logs:DescribeLogGroups",
+                  "logs:DescribeLogStreams",
+                  "logs:PutLogEvents",
+                ],
+                resources: ["*"],
+              }),
+            ],
+          }),
+        },
       },
-    });
+    );
 
     new apigw.CfnAccount(this, `WorkoutTracer-ApiGatewayAccount-${stage}`, {
       cloudWatchRoleArn: apiGwLogsRole.roleArn,
     });
 
-    const layer = new lambda.LayerVersion(this, `WorkoutTracer-ApiLayer-${stage}`, {
-      code: lambda.Code.fromAsset(
-        assetPath
-          ? path.join(assetPath, "lambda_layer.zip")
-          : path.join(
-              __dirname,
-              "../../../workout_tracer_api/lambda_layer.zip",
-            ),
-      ),
-      compatibleRuntimes: [lambda.Runtime.PYTHON_3_11],
-      description: "WorkoutTracer Lambda layer with dependencies",
-    });
+    const layer = new lambda.LayerVersion(
+      this,
+      `WorkoutTracer-ApiLayer-${stage}`,
+      {
+        code: lambda.Code.fromAsset(
+          assetPath
+            ? path.join(assetPath, "lambda_layer.zip")
+            : path.join(
+                __dirname,
+                "../../../workout_tracer_api/lambda_layer.zip",
+              ),
+        ),
+        compatibleRuntimes: [lambda.Runtime.PYTHON_3_11],
+        description: "WorkoutTracer Lambda layer with dependencies",
+      },
+    );
 
     const applicationLogsLogGroup = new logs.LogGroup(
       this,
@@ -76,23 +85,31 @@ export class ApiStack extends Stack {
       },
     );
 
-    const workoutTracerApi = new lambda.Function(this, `WorkoutTracer-ApiLambda-${stage}`, {
-      functionName: `WorkoutTracerApi-${stage}`,
-      runtime: lambda.Runtime.PYTHON_3_11,
-      handler: "app.handler",
-      code: lambda.Code.fromAsset(
-        assetPath || path.join(__dirname, "../../../workout_tracer_api"),
-      ),
-      timeout: Duration.seconds(10),
-      layers: [layer],
-      logGroup: applicationLogsLogGroup,
-    });
+    const workoutTracerApi = new lambda.Function(
+      this,
+      `WorkoutTracer-ApiLambda-${stage}`,
+      {
+        functionName: `WorkoutTracerApi-${stage}`,
+        runtime: lambda.Runtime.PYTHON_3_11,
+        handler: "app.handler",
+        code: lambda.Code.fromAsset(
+          assetPath || path.join(__dirname, "../../../workout_tracer_api"),
+        ),
+        timeout: Duration.seconds(10),
+        layers: [layer],
+        logGroup: applicationLogsLogGroup,
+      },
+    );
 
     // CloudWatch Log Group for API Gateway access logs
-    const accessLogGroup = new logs.LogGroup(this, `WorkoutTracer-ServiceLogs-${stage}`, {
-      logGroupName: `/aws/apigateway/WorkoutTracerServiceLogs-${stage}`,
-      retention: logs.RetentionDays.INFINITE,
-    });
+    const accessLogGroup = new logs.LogGroup(
+      this,
+      `WorkoutTracer-ServiceLogs-${stage}`,
+      {
+        logGroupName: `/aws/apigateway/WorkoutTracerServiceLogs-${stage}`,
+        retention: logs.RetentionDays.INFINITE,
+      },
+    );
 
     // Identity Pool setup
     this.identityPool = new cognito.CfnIdentityPool(

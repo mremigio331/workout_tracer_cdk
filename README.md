@@ -49,4 +49,8 @@ Edit `cdk.env.json` to update domain names, certificate ARNs, callback URLs, and
 - S3 bucket names and other resources requiring lowercase use `.toLowerCase()` on the stage name.
 - The pipeline can be extended to support CI/CD with GitHub and CodePipeline.
 
+## Formatting
+```
+npx prettier --write "**/*.ts"   
+```
 ---

@@ -112,15 +112,19 @@ export class WebsiteStack extends Stack {
       .replace(/^\.+/, "")
       .replace(/\.+$/, "");
 
-    this.siteBucket = new s3.Bucket(this, `WorkoutTracer-WebsiteBucket-${stage}`, {
-      bucketName: `workouttracer-website-bucket-${stage.toLowerCase()}`,
-      publicReadAccess: false,
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      removalPolicy: RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
-      serverAccessLogsBucket: loggingBucket,
-      serverAccessLogsPrefix: "s3-access/",
-    });
+    this.siteBucket = new s3.Bucket(
+      this,
+      `WorkoutTracer-WebsiteBucket-${stage}`,
+      {
+        bucketName: `workouttracer-website-bucket-${stage.toLowerCase()}`,
+        publicReadAccess: false,
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+        removalPolicy: RemovalPolicy.DESTROY,
+        autoDeleteObjects: true,
+        serverAccessLogsBucket: loggingBucket,
+        serverAccessLogsPrefix: "s3-access/",
+      },
+    );
 
     const oai = new cloudfront.OriginAccessIdentity(this, "WorkoutTracerOAI");
     this.siteBucket.grantRead(oai);
