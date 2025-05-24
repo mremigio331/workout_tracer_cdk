@@ -12,18 +12,17 @@ import { PipelineStack } from "../lib/stacks/pipeline-stack";
 import { SecretsManager } from "aws-sdk";
 
 async function getEnvConfig() {
-  // Prefer a custom environment variable if set (set this in CodeBuild/CodePipeline environment)
+  // Use environment variables for config in CI/CD, fallback to file for local dev
   const isCICD = !!process.env.CICD || !!process.env.CODEBUILD_BUILD_ID || !!process.env.CODEPIPELINE_EXECUTION_ID || !!process.env.CODEDEPLOY_DEPLOYMENT_ID || !!process.env.USE_SECRETS_MANAGER;
   console.log(
     `[CDK ENV DETECT] CICD: ${process.env.CICD}, CODEBUILD_BUILD_ID: ${process.env.CODEBUILD_BUILD_ID}, CODEPIPELINE_EXECUTION_ID: ${process.env.CODEPIPELINE_EXECUTION_ID}, CODEDEPLOY_DEPLOYMENT_ID: ${process.env.CODEDEPLOY_DEPLOYMENT_ID}, USE_SECRETS_MANAGER: ${process.env.USE_SECRETS_MANAGER}, isCICD: ${isCICD}`
   );
   if (isCICD) {
-    const secretsManager = new SecretsManager({ region: "us-west-2" });
-    const secret = await secretsManager
-      .getSecretValue({ SecretId: "workout_tracer/cdk.env" })
-      .promise();
-    if (!secret.SecretString) throw new Error("SecretString is empty");
-    return JSON.parse(secret.SecretString);
+    // Expect a single environment variable CDK_ENV_CONFIG containing the JSON config
+    if (!process.env.CDK_ENV_CONFIG) {
+      throw new Error('CDK_ENV_CONFIG environment variable not set in CI/CD environment');
+    }
+    return JSON.parse(process.env.CDK_ENV_CONFIG);
   } else {
     // Local fallback
     const envFilePath = path.resolve(__dirname, "../cdk.env.json");

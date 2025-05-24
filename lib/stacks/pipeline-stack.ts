@@ -139,7 +139,10 @@ export class PipelineStack extends Stack {
             type: codebuild.BuildEnvironmentVariableType.SECRETS_MANAGER,
             value: 'GithubToken:GITHUB_TOKEN',
           },
-          CICD: { value: 'true' }, // Add this line to set CICD env variable
+          CICD: { value: 'true' },
+          CDK_ENV_CONFIG: {
+            value: process.env.CDK_ENV_CONFIG || '',
+          },
         },
       },
       logging: {
@@ -186,7 +189,10 @@ export class PipelineStack extends Stack {
             type: codebuild.BuildEnvironmentVariableType.SECRETS_MANAGER,
             value: 'GithubToken:GITHUB_TOKEN',
           },
-          CICD: { value: 'true' }, // Add this line to set CICD env variable
+          CICD: { value: 'true' },
+          CDK_ENV_CONFIG: {
+            value: process.env.CDK_ENV_CONFIG || '',
+          },
         },
       },
       logging: {
