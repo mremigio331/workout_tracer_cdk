@@ -98,6 +98,7 @@ export class ApiStack extends Stack {
         timeout: Duration.seconds(10),
         layers: [layer],
         logGroup: applicationLogsLogGroup,
+        tracing: lambda.Tracing.ACTIVE, // Enable X-Ray tracing for Lambda
       },
     );
 
@@ -129,6 +130,7 @@ export class ApiStack extends Stack {
     this.api = new apigw.RestApi(this, `WorkoutTracer-RestApi-${stage}`, {
       restApiName: `WorkoutTracerApi-${stage}`,
       deployOptions: {
+        tracingEnabled: true,
         accessLogDestination: new apigw.LogGroupLogDestination(accessLogGroup),
         accessLogFormat: apigw.AccessLogFormat.custom(
           JSON.stringify({

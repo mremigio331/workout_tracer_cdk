@@ -9,12 +9,12 @@ import {
 import { Construct } from "constructs";
 
 interface ApiDnsStackProps extends StackProps {
-  stage: string;
-  rootDomainName: string;
-  apiDomainName: string;
-  hostedZoneId: string;
   api: apigw.RestApi;
+  apiDomainName: string;
   certificateArn: string;
+  hostedZoneId: string;
+  rootDomainName: string;
+  stage: string;
 }
 
 export class ApiDnsStack extends Stack {
@@ -22,12 +22,12 @@ export class ApiDnsStack extends Stack {
     super(scope, id, props);
 
     const {
-      stage,
-      rootDomainName,
-      apiDomainName,
-      hostedZoneId,
       api,
+      apiDomainName,
       certificateArn,
+      hostedZoneId,
+      rootDomainName,
+      stage,
     } = props;
 
     const hostedZone = route53.HostedZone.fromHostedZoneAttributes(

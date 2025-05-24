@@ -63,6 +63,7 @@ export class AuthStack extends Stack {
         code: lambda.Code.fromAsset(
           assetPath || path.join(__dirname, "../../../workout_tracer_api"),
         ),
+        tracing: lambda.Tracing.ACTIVE, // Enable X-Ray tracing for Lambda
         timeout: Duration.seconds(10),
         logRetention: 7,
         layers: [layer, powertoolsLayer],
