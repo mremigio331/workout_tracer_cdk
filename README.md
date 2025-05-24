@@ -8,7 +8,6 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
 - **bin/**: Entry point for the CDK app (`workout_tracer_cdk.ts`)
 - **lib/**: CDK stack definitions (API, Auth, Website, Database, DNS, Pipeline)
-- **cdk.env.json**: Environment-specific configuration for each deployment stage (e.g., Staging, Prod)
 
 ## Environments
 
