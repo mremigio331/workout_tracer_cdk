@@ -43,7 +43,7 @@ export class WebsiteStack extends Stack {
 
     const hostedZone = route53.HostedZone.fromHostedZoneAttributes(
       this,
-      "WorkoutTracer-HostedZone",
+      `WorkoutTracer-HostedZone-${stage}`,
       {
         hostedZoneId,
         zoneName: domainName,
@@ -52,7 +52,7 @@ export class WebsiteStack extends Stack {
 
     const certificate = certmgr.Certificate.fromCertificateArn(
       this,
-      "WorkoutTracer-Certificate",
+      `WorkoutTracer-Certificate-${stage}`,
       certificateArn,
     );
 
@@ -68,16 +68,16 @@ export class WebsiteStack extends Stack {
 
     const logGroup = new logs.LogGroup(
       this,
-      "WorkoutTracer-CloudFrontLogGroup",
+      `WorkoutTracer-CloudFrontLogGroup-${stage}`,
       {
-        logGroupName: "/aws/cloudfront/WorkoutTracer-CloudFrontAccessLogs",
+        logGroupName: `/aws/cloudfront/WorkoutTracer-CloudFrontAccessLogs-${stage}`,
         retention: logs.RetentionDays.INFINITE,
         removalPolicy: RemovalPolicy.DESTROY,
       },
     );
 
-    const firehoseRole = new iam.Role(this, "WorkoutTracer-FirehoseRole", {
-      roleName: "WorkoutTracer-FirehoseRole",
+    const firehoseRole = new iam.Role(this, `WorkoutTracer-FirehoseRole-${stage}`, {
+      roleName: `WorkoutTracer-FirehoseRole-${stage}`,
       assumedBy: new iam.ServicePrincipal("firehose.amazonaws.com"),
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName("CloudWatchLogsFullAccess"),
@@ -87,7 +87,7 @@ export class WebsiteStack extends Stack {
 
     new firehose.CfnDeliveryStream(
       this,
-      "WorkoutTracer-FirehoseDeliveryStream",
+      `WorkoutTracer-FirehoseDeliveryStream-${stage}`,
       {
         deliveryStreamType: "DirectPut",
         s3DestinationConfiguration: {
@@ -101,7 +101,7 @@ export class WebsiteStack extends Stack {
           cloudWatchLoggingOptions: {
             enabled: true,
             logGroupName: logGroup.logGroupName,
-            logStreamName: "firehose-delivery-stream",
+            logStreamName: `firehose-delivery-stream-${stage}`,
           },
         },
       },
@@ -126,12 +126,12 @@ export class WebsiteStack extends Stack {
       },
     );
 
-    const oai = new cloudfront.OriginAccessIdentity(this, "WorkoutTracerOAI");
+    const oai = new cloudfront.OriginAccessIdentity(this, `WorkoutTracerOAI-${stage}`);
     this.siteBucket.grantRead(oai);
 
     this.distribution = new cloudfront.Distribution(
       this,
-      "WorkoutTracer-Distribution",
+      `WorkoutTracer-Distribution-${stage}`,
       {
         defaultRootObject: "index.html",
         domainNames: [domainName],
@@ -149,7 +149,7 @@ export class WebsiteStack extends Stack {
       },
     );
 
-    new route53.ARecord(this, "WorkoutTracer-AliasRecord", {
+    new route53.ARecord(this, `WorkoutTracer-AliasRecord-${stage}`, {
       recordName: domainName,
       target: route53.RecordTarget.fromAlias(
         new route53_targets.CloudFrontTarget(this.distribution),
@@ -166,7 +166,7 @@ export class WebsiteStack extends Stack {
           );
 
     if (deploymentSource) {
-      new s3deploy.BucketDeployment(this, "WorkoutTracer-WebsiteDeployment", {
+      new s3deploy.BucketDeployment(this, `WorkoutTracer-WebsiteDeployment-${stage}`, {
         sources: [deploymentSource],
         destinationBucket: this.siteBucket,
         distribution: this.distribution,
