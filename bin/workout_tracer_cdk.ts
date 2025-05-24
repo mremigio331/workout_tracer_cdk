@@ -13,14 +13,21 @@ import { SecretsManager } from "aws-sdk";
 
 async function getEnvConfig() {
   // Use environment variables for config in CI/CD, fallback to file for local dev
-  const isCICD = !!process.env.CICD || !!process.env.CODEBUILD_BUILD_ID || !!process.env.CODEPIPELINE_EXECUTION_ID || !!process.env.CODEDEPLOY_DEPLOYMENT_ID || !!process.env.USE_SECRETS_MANAGER;
+  const isCICD =
+    !!process.env.CICD ||
+    !!process.env.CODEBUILD_BUILD_ID ||
+    !!process.env.CODEPIPELINE_EXECUTION_ID ||
+    !!process.env.CODEDEPLOY_DEPLOYMENT_ID ||
+    !!process.env.USE_SECRETS_MANAGER;
   console.log(
-    `[CDK ENV DETECT] CICD: ${process.env.CICD}, CODEBUILD_BUILD_ID: ${process.env.CODEBUILD_BUILD_ID}, CODEPIPELINE_EXECUTION_ID: ${process.env.CODEPIPELINE_EXECUTION_ID}, CODEDEPLOY_DEPLOYMENT_ID: ${process.env.CODEDEPLOY_DEPLOYMENT_ID}, USE_SECRETS_MANAGER: ${process.env.USE_SECRETS_MANAGER}, isCICD: ${isCICD}`
+    `[CDK ENV DETECT] CICD: ${process.env.CICD}, CODEBUILD_BUILD_ID: ${process.env.CODEBUILD_BUILD_ID}, CODEPIPELINE_EXECUTION_ID: ${process.env.CODEPIPELINE_EXECUTION_ID}, CODEDEPLOY_DEPLOYMENT_ID: ${process.env.CODEDEPLOY_DEPLOYMENT_ID}, USE_SECRETS_MANAGER: ${process.env.USE_SECRETS_MANAGER}, isCICD: ${isCICD}`,
   );
   if (isCICD) {
     // Expect a single environment variable CDK_ENV_CONFIG containing the JSON config
     if (!process.env.CDK_ENV_CONFIG) {
-      throw new Error('CDK_ENV_CONFIG environment variable not set in CI/CD environment');
+      throw new Error(
+        "CDK_ENV_CONFIG environment variable not set in CI/CD environment",
+      );
     }
     return JSON.parse(process.env.CDK_ENV_CONFIG);
   } else {

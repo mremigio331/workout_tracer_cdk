@@ -76,14 +76,20 @@ export class WebsiteStack extends Stack {
       },
     );
 
-    const firehoseRole = new iam.Role(this, `WorkoutTracer-FirehoseRole-${stage}`, {
-      roleName: `WorkoutTracer-FirehoseRole-${stage}`,
-      assumedBy: new iam.ServicePrincipal("firehose.amazonaws.com"),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName("CloudWatchLogsFullAccess"),
-        iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonS3FullAccess"),
-      ],
-    });
+    const firehoseRole = new iam.Role(
+      this,
+      `WorkoutTracer-FirehoseRole-${stage}`,
+      {
+        roleName: `WorkoutTracer-FirehoseRole-${stage}`,
+        assumedBy: new iam.ServicePrincipal("firehose.amazonaws.com"),
+        managedPolicies: [
+          iam.ManagedPolicy.fromAwsManagedPolicyName(
+            "CloudWatchLogsFullAccess",
+          ),
+          iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonS3FullAccess"),
+        ],
+      },
+    );
 
     new firehose.CfnDeliveryStream(
       this,
@@ -126,7 +132,10 @@ export class WebsiteStack extends Stack {
       },
     );
 
-    const oai = new cloudfront.OriginAccessIdentity(this, `WorkoutTracerOAI-${stage}`);
+    const oai = new cloudfront.OriginAccessIdentity(
+      this,
+      `WorkoutTracerOAI-${stage}`,
+    );
     this.siteBucket.grantRead(oai);
 
     this.distribution = new cloudfront.Distribution(
@@ -166,12 +175,16 @@ export class WebsiteStack extends Stack {
           );
 
     if (deploymentSource) {
-      new s3deploy.BucketDeployment(this, `WorkoutTracer-WebsiteDeployment-${stage}`, {
-        sources: [deploymentSource],
-        destinationBucket: this.siteBucket,
-        distribution: this.distribution,
-        distributionPaths: ["/*"],
-      });
+      new s3deploy.BucketDeployment(
+        this,
+        `WorkoutTracer-WebsiteDeployment-${stage}`,
+        {
+          sources: [deploymentSource],
+          destinationBucket: this.siteBucket,
+          distribution: this.distribution,
+          distributionPaths: ["/*"],
+        },
+      );
     }
   }
 }

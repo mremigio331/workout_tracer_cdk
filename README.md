@@ -23,12 +23,12 @@ This project supports multiple deployment stages (e.g., Staging, Prod). Environm
 
 ## Useful commands
 
-* `npm run build`   compile typescript to js
-* `npm run watch`   watch for changes and compile
-* `npm run test`    perform the jest unit tests
-* `npx cdk deploy`  deploy all stacks to your default AWS account/region
-* `npx cdk diff`    compare deployed stack with current state
-* `npx cdk synth`   emits the synthesized CloudFormation template
+- `npm run build` compile typescript to js
+- `npm run watch` watch for changes and compile
+- `npm run test` perform the jest unit tests
+- `npx cdk deploy` deploy all stacks to your default AWS account/region
+- `npx cdk diff` compare deployed stack with current state
+- `npx cdk synth` emits the synthesized CloudFormation template
 
 ## Deploying a Specific Stage
 
@@ -49,7 +49,9 @@ Edit `cdk.env.json` to update domain names, certificate ARNs, callback URLs, and
 - The pipeline can be extended to support CI/CD with GitHub and CodePipeline.
 
 ## Formatting
+
 ```
-npx prettier --write "**/*.ts"   
+npx prettier --write "**/*.ts"
 ```
+
 ---
