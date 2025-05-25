@@ -11,18 +11,126 @@ import {
   aws_cloudwatch as cloudwatch,
   aws_cloudwatch_actions as cloudwatch_actions,
   aws_sns as sns,
-  aws_sns_subscriptions as sns_subs,
+  aws_apigateway as apigateway,
+  aws_lambda as lambda,
   RemovalPolicy,
   Duration,
-  aws_events as events,
-  aws_events_targets as targets,
 } from "aws-cdk-lib";
+import * as path from "path";
+
 import { Construct } from "constructs";
 
 export class PipelineStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
+    const layer = new lambda.LayerVersion(
+      this,
+      `WorkoutTracer-PipelineDeployLambdaLayer`,
+      {
+        code: lambda.Code.fromAsset(
+          path.join(__dirname, "../../../workout_tracer_api/lambda_layer.zip"),
+        ),
+        compatibleRuntimes: [lambda.Runtime.PYTHON_3_11],
+        description: "WorkoutTracer Lambda layer with dependencies",
+      },
+    );
+
+    const githubSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "GitHubWebhookSecret",
+      "GithubToken",
+    );
+
+    const pipelineDeplyLambda = new lambda.Function(
+      this,
+      `WorkoutTracer-PipelineDeployLambda`,
+      {
+        functionName: `WorkoutTracer-PipelineDeployLambda`,
+        description: "Lambda function to deploy the Workout Tracer pipeline",
+        runtime: lambda.Runtime.PYTHON_3_11,
+        handler: "lambdas.pipeline_deployment.handler",
+        code: lambda.Code.fromAsset(
+          path.join(__dirname, "../../../workout_tracer_api"),
+        ),
+        timeout: Duration.seconds(10),
+        layers: [layer],
+        tracing: lambda.Tracing.ACTIVE,
+        environment: {
+          PIPELINE: "WorkoutTracerPipeline",
+        },
+      },
+    );
+
+    const webhookAuthorizerLambda = new lambda.Function(
+      this,
+      "GitHubWebhookAuthorizer",
+      {
+        runtime: lambda.Runtime.PYTHON_3_11,
+        handler: "lambdas.github_auth.handler",
+        code: lambda.Code.fromAsset(
+          path.join(__dirname, "../../../workout_tracer_api"),
+        ),
+        timeout: Duration.seconds(5),
+      },
+    );
+
+    githubSecret.grantRead(webhookAuthorizerLambda);
+
+    // Create a CloudWatch Log Group for API Gateway execution logs
+    const apiLogGroup = new logs.LogGroup(this, "WebhookApiLogGroup", {
+      logGroupName: "WorkoutTracer-GithubWebhok-API",
+      removalPolicy: RemovalPolicy.DESTROY,
+      retention: logs.RetentionDays.ONE_MONTH,
+    });
+
+    const api = new apigateway.RestApi(this, "WorkoutTracerWebhookAPI", {
+      description: "API for Workout Tracer GitHub Webhook",
+      restApiName: "WorkoutTracerApi-GithubWebhook",
+      deployOptions: {
+        stageName: "prod",
+        accessLogDestination: new apigateway.LogGroupLogDestination(
+          apiLogGroup,
+        ),
+        accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields({
+          caller: true,
+          httpMethod: true,
+          ip: true,
+          protocol: true,
+          requestTime: true,
+          resourcePath: true,
+          responseLength: true,
+          status: true,
+          user: true,
+        }),
+        loggingLevel: apigateway.MethodLoggingLevel.INFO,
+        dataTraceEnabled: true,
+      },
+    });
+
+    const requestAuthorizer = new apigateway.RequestAuthorizer(
+      this,
+      "GitHubAuthorizer",
+      {
+        handler: webhookAuthorizerLambda,
+        identitySources: [
+          apigateway.IdentitySource.header("X-Hub-Signature-256"),
+        ],
+        resultsCacheTtl: Duration.seconds(0),
+      },
+    );
+
+    const webhookResource = api.root.addResource("github-webhook");
+
+    webhookResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(pipelineDeplyLambda),
+      {
+        authorizer: requestAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
+        methodResponses: [{ statusCode: "200" }],
+      },
+    );
     // Load GitHub PAT from Secrets Manager (secret name: 'GithubToken', key: 'GITHUB_TOKEN')
     const githubToken = secretsmanager.Secret.fromSecretNameV2(
       this,
