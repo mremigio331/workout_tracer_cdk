@@ -17,7 +17,7 @@ export class DatabaseStack extends Stack {
     const { stage } = props;
 
     this.table = new dynamodb.Table(this, `WorkoutTracer-UserTable-${stage}`, {
-      tableName: `WorkoutTracerUserTable-${stage}`,
+      tableName: `WorkoutTracer-UserTable-${stage}`,
       partitionKey: {
         name: "PK",
         type: dynamodb.AttributeType.STRING,

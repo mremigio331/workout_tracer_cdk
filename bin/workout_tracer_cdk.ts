@@ -93,6 +93,7 @@ async function main() {
       stage,
       userPool: authStack.userPool,
       userPoolClient: authStack.userPoolClient,
+      userTable: databaseStack.table,
     });
 
     // API DNS stack

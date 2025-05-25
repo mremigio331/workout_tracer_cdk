@@ -107,7 +107,7 @@ export class WebsiteStack extends Stack {
           cloudWatchLoggingOptions: {
             enabled: true,
             logGroupName: logGroup.logGroupName,
-            logStreamName: `firehose-delivery-stream-${stage}`,
+            logStreamName: `WorkoutTracer-firehose-delivery-stream-${stage}`,
           },
         },
       },
@@ -134,7 +134,7 @@ export class WebsiteStack extends Stack {
 
     const oai = new cloudfront.OriginAccessIdentity(
       this,
-      `WorkoutTracerOAI-${stage}`,
+      `WorkoutTracer-OAI-${stage}`,
     );
     this.siteBucket.grantRead(oai);
 

@@ -10,18 +10,18 @@ import {
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
 import * as path from "path";
-import { Fn } from "aws-cdk-lib";
 
 interface ApiStackProps extends StackProps {
   assetPath?: string;
   environmentType?: string;
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
-  stage: string; // Add stage prop
+  stage: string;
+  userTable?: any; // Add this if not already present
 }
 
 export class ApiStack extends Stack {
-  public readonly api: apigw.RestApi;
+  public readonly api: apigw.LambdaRestApi;
   public readonly identityPool: cognito.CfnIdentityPool;
 
   constructor(scope: Construct, id: string, props: ApiStackProps) {
@@ -72,7 +72,7 @@ export class ApiStack extends Stack {
               ),
         ),
         compatibleRuntimes: [lambda.Runtime.PYTHON_3_11],
-        description: "WorkoutTracer Lambda layer with dependencies",
+        description: `WorkoutTracer-ApiLayer-${stage}`,
       },
     );
 
@@ -80,7 +80,7 @@ export class ApiStack extends Stack {
       this,
       `WorkoutTracer-ApplicationLogs-${stage}`,
       {
-        logGroupName: `/aws/lambda/WorkoutTracerApi-${stage}`,
+        logGroupName: `/aws/lambda/WorkoutTracer-ApiLambda-${stage}`,
         retention: logs.RetentionDays.INFINITE,
       },
     );
@@ -89,7 +89,7 @@ export class ApiStack extends Stack {
       this,
       `WorkoutTracer-ApiLambda-${stage}`,
       {
-        functionName: `WorkoutTracerApi-${stage}`,
+        functionName: `WorkoutTracer-ApiLambda-${stage}`,
         runtime: lambda.Runtime.PYTHON_3_11,
         handler: "app.handler",
         code: lambda.Code.fromAsset(
@@ -98,21 +98,28 @@ export class ApiStack extends Stack {
         timeout: Duration.seconds(10),
         layers: [layer],
         logGroup: applicationLogsLogGroup,
-        tracing: lambda.Tracing.ACTIVE, // Enable X-Ray tracing for Lambda
+        tracing: lambda.Tracing.ACTIVE,
+        description: `WorkoutTracer-ApiLambda-${stage}`,
+        environment: {
+          TABLE_NAME: props.userTable ? props.userTable.tableName : "",
+        },
       },
     );
 
-    // CloudWatch Log Group for API Gateway access logs
+    // Grant Lambda permissions to access the DynamoDB table
+    if (props.userTable) {
+      props.userTable.grantReadWriteData(workoutTracerApi);
+    }
+
     const accessLogGroup = new logs.LogGroup(
       this,
       `WorkoutTracer-ServiceLogs-${stage}`,
       {
-        logGroupName: `/aws/apigateway/WorkoutTracerServiceLogs-${stage}`,
+        logGroupName: `/aws/apigateway/WorkoutTracer-ServiceLogs-${stage}`,
         retention: logs.RetentionDays.INFINITE,
       },
     );
 
-    // Identity Pool setup
     this.identityPool = new cognito.CfnIdentityPool(
       this,
       `WorkoutTracer-IdentityPool-${stage}`,
@@ -127,33 +134,57 @@ export class ApiStack extends Stack {
       },
     );
 
-    this.api = new apigw.RestApi(this, `WorkoutTracer-RestApi-${stage}`, {
-      restApiName: `WorkoutTracerApi-${stage}`,
-      deployOptions: {
-        tracingEnabled: true,
-        accessLogDestination: new apigw.LogGroupLogDestination(accessLogGroup),
-        accessLogFormat: apigw.AccessLogFormat.custom(
-          JSON.stringify({
-            requestId: "$context.requestId",
-            caller: "$context.identity.caller",
-            httpMethod: "$context.httpMethod",
-            ip: "$context.identity.sourceIp",
-            protocol: "$context.protocol",
-            requestTime: "$context.requestTime",
-            resourcePath: "$context.resourcePath",
-            responseLength: "$context.responseLength",
-            status: "$context.status",
-            user: "$context.identity.user",
-            errorMessage: "$context.error.message",
-            errorResponseType: "$context.error.responseType",
-          }),
-        ),
-        loggingLevel: apigw.MethodLoggingLevel.INFO,
-        dataTraceEnabled: true,
+    // Create Cognito Authorizer
+    const authorizer = new apigw.CognitoUserPoolsAuthorizer(
+      this,
+      `WorkoutTracer-ApiAuthorizer-${stage}`,
+      {
+        cognitoUserPools: [userPool],
+        authorizerName: `WorkoutTracer-ApiAuthorizer-${stage}`,
+        identitySource: "method.request.header.Authorization",
       },
-    });
+    );
 
-    const rootIntegration = new apigw.LambdaIntegration(workoutTracerApi);
-    this.api.root.addMethod("GET", rootIntegration);
+    this.api = new apigw.LambdaRestApi(
+      this,
+      `WorkoutTracer-LambdaRestApi-${stage}`,
+      {
+        handler: workoutTracerApi,
+        restApiName: `WorkoutTracer-Api-${stage}`,
+        proxy: true,
+        // Attach the authorizer to all methods by default
+        defaultMethodOptions: {
+          authorizationType: apigw.AuthorizationType.COGNITO,
+          authorizer,
+        },
+        // Add CORS preflight options to resolve CORS errors
+        defaultCorsPreflightOptions: {
+          allowOrigins: apigw.Cors.ALL_ORIGINS,
+          allowMethods: apigw.Cors.ALL_METHODS,
+          allowHeaders: ["*"],
+        },
+        deployOptions: {
+          tracingEnabled: true,
+          accessLogDestination: new apigw.LogGroupLogDestination(
+            accessLogGroup,
+          ),
+          accessLogFormat: apigw.AccessLogFormat.custom(
+            JSON.stringify({
+              requestId: "$context.requestId",
+              user_id: "$context.authorizer.claims.sub",
+              resourcePath: "$context.resourcePath",
+              httpMethod: "$context.httpMethod",
+              ip: "$context.identity.sourceIp",
+              status: "$context.status",
+              errorMessage: "$context.error.message",
+              errorResponseType: "$context.error.responseType",
+            }),
+          ),
+          loggingLevel: apigw.MethodLoggingLevel.INFO,
+          dataTraceEnabled: true,
+          description: `WorkoutTracer-ApiGateway-Deployment-${stage}`,
+        },
+      },
+    );
   }
 }

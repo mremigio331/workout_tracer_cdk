@@ -286,8 +286,7 @@ export class PipelineStack extends Stack {
           phases: {
             install: {
               commands: [
-                // No need to unzip; artifact is already present in working directory
-                "ls -al workout_tracer_api || true", // Optional: debug
+                "ls -al workout_tracer_api || true",
                 "cd workout_tracer_cdk",
                 "npm ci",
               ],

@@ -80,7 +80,7 @@ export class AuthStack extends Stack {
       this,
       `WorkoutTracer-UserPool-${stage}`,
       {
-        userPoolName: `WorkoutTracerUserPool-${stage}`,
+        userPoolName: `WorkoutTracer-UserPool-${stage}`,
         selfSignUpEnabled: true,
         signInAliases: {
           email: true,
