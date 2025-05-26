@@ -102,6 +102,7 @@ export class ApiStack extends Stack {
         description: `WorkoutTracer-ApiLambda-${stage}`,
         environment: {
           TABLE_NAME: props.userTable ? props.userTable.tableName : "",
+          STAGE: stage,
         },
       },
     );
@@ -152,12 +153,10 @@ export class ApiStack extends Stack {
         handler: workoutTracerApi,
         restApiName: `WorkoutTracer-Api-${stage}`,
         proxy: true,
-        // Attach the authorizer to all methods by default
         defaultMethodOptions: {
           authorizationType: apigw.AuthorizationType.COGNITO,
           authorizer,
         },
-        // Add CORS preflight options to resolve CORS errors
         defaultCorsPreflightOptions: {
           allowOrigins: apigw.Cors.ALL_ORIGINS,
           allowMethods: apigw.Cors.ALL_METHODS,
