@@ -90,6 +90,7 @@ async function main() {
     // API stack
     const api = new ApiStack(app, `WorkoutTracer-ApiStack-${stage}`, {
       env: awsEnv,
+      apiDomainName: apiDomainName,
       stage,
       userPool: authStack.userPool,
       userPoolClient: authStack.userPoolClient,

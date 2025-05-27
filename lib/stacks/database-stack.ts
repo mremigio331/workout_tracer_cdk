@@ -3,8 +3,6 @@ import { Construct } from "constructs";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 
 interface DatabaseStackProps extends StackProps {
-  assetPath?: string;
-  environmentType?: string;
   stage: string;
 }
 

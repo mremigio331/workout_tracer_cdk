@@ -12,9 +12,7 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as path from "path";
 
 interface AuthStackProps extends StackProps {
-  assetPath?: string;
   callbackUrls: string[];
-  environmentType?: string;
   stage: string;
   userTable: dynamodb.ITable;
 }
@@ -28,19 +26,14 @@ export class AuthStack extends Stack {
   constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id, props);
 
-    const { callbackUrls, assetPath, userTable, stage } = props;
+    const { callbackUrls, userTable, stage } = props;
 
     const layer = new lambda.LayerVersion(
       this,
       `WorkoutTracer-CognitoLambdaLayer-${stage}`,
       {
         code: lambda.Code.fromAsset(
-          assetPath
-            ? path.join(assetPath, "lambda_layer.zip")
-            : path.join(
-                __dirname,
-                "../../../workout_tracer_api/lambda_layer.zip",
-              ),
+          path.join(__dirname, "../../../workout_tracer_api/lambda_layer.zip"),
         ),
         compatibleRuntimes: [lambda.Runtime.PYTHON_3_11],
         description: "WorkoutTracer Lambda layer with dependencies",
@@ -61,7 +54,7 @@ export class AuthStack extends Stack {
         runtime: lambda.Runtime.PYTHON_3_11,
         handler: "lambdas.cognito_user_creator.handler",
         code: lambda.Code.fromAsset(
-          assetPath || path.join(__dirname, "../../../workout_tracer_api"),
+          path.join(__dirname, "../../../workout_tracer_api"),
         ),
         tracing: lambda.Tracing.ACTIVE, // Enable X-Ray tracing for Lambda
         timeout: Duration.seconds(10),

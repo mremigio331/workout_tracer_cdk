@@ -17,10 +17,8 @@ import * as path from "path";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 
 interface WebsiteStackProps extends StackProps {
-  assetPath?: string;
   certificateArn: string;
   domainName: string;
-  environmentType?: string;
   hostedZoneId: string;
   stage: string;
 }
@@ -32,14 +30,7 @@ export class WebsiteStack extends Stack {
   constructor(scope: Construct, id: string, props: WebsiteStackProps) {
     super(scope, id, props);
 
-    const {
-      domainName,
-      hostedZoneId,
-      certificateArn,
-      assetPath,
-      environmentType,
-      stage,
-    } = props;
+    const { domainName, hostedZoneId, certificateArn, stage } = props;
 
     const hostedZone = route53.HostedZone.fromHostedZoneAttributes(
       this,
@@ -166,13 +157,9 @@ export class WebsiteStack extends Stack {
       zone: hostedZone,
     });
 
-    const deploymentSource =
-      environmentType === "pipeline"
-        ? undefined
-        : s3deploy.Source.asset(
-            assetPath ||
-              path.join(__dirname, "../../../workout_tracer_website/dist"),
-          );
+    const deploymentSource = s3deploy.Source.asset(
+      path.join(__dirname, "../../../workout_tracer_website/dist"),
+    );
 
     if (deploymentSource) {
       new s3deploy.BucketDeployment(
