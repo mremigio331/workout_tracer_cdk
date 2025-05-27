@@ -6,18 +6,19 @@ import {
   aws_apigateway as apigw,
   aws_lambda as lambda,
   aws_cognito as cognito,
+  aws_cloudwatch as cloudwatch,
+  aws_dynamodb as dynamodb,
 } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
 import * as path from "path";
 
 interface ApiStackProps extends StackProps {
-  assetPath?: string;
-  environmentType?: string;
+  apiDomainName: string;
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
   stage: string;
-  userTable?: any; // Add this if not already present
+  userTable: dynamodb.ITable;
 }
 
 export class ApiStack extends Stack {
@@ -27,8 +28,7 @@ export class ApiStack extends Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    const { assetPath, environmentType, userPool, userPoolClient, stage } =
-      props;
+    const { apiDomainName, userPool, userPoolClient, userTable, stage } = props;
 
     const apiGwLogsRole = new iam.Role(
       this,
@@ -64,12 +64,7 @@ export class ApiStack extends Stack {
       `WorkoutTracer-ApiLayer-${stage}`,
       {
         code: lambda.Code.fromAsset(
-          assetPath
-            ? path.join(assetPath, "lambda_layer.zip")
-            : path.join(
-                __dirname,
-                "../../../workout_tracer_api/lambda_layer.zip",
-              ),
+          path.join(__dirname, "../../../workout_tracer_api/lambda_layer.zip"),
         ),
         compatibleRuntimes: [lambda.Runtime.PYTHON_3_11],
         description: `WorkoutTracer-ApiLayer-${stage}`,
@@ -93,7 +88,7 @@ export class ApiStack extends Stack {
         runtime: lambda.Runtime.PYTHON_3_11,
         handler: "app.handler",
         code: lambda.Code.fromAsset(
-          assetPath || path.join(__dirname, "../../../workout_tracer_api"),
+          path.join(__dirname, "../../../workout_tracer_api"),
         ),
         timeout: Duration.seconds(10),
         layers: [layer],
@@ -101,16 +96,17 @@ export class ApiStack extends Stack {
         tracing: lambda.Tracing.ACTIVE,
         description: `WorkoutTracer-ApiLambda-${stage}`,
         environment: {
-          TABLE_NAME: props.userTable ? props.userTable.tableName : "",
+          TABLE_NAME: userTable.tableName,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_API_REDIRECT_URI: apiDomainName,
+          COGNITO_DOMAIN: `https://workouttracer-${stage}}.auth.us-west-2.amazoncognito.com`,
           STAGE: stage,
         },
       },
     );
 
-    // Grant Lambda permissions to access the DynamoDB table
-    if (props.userTable) {
-      props.userTable.grantReadWriteData(workoutTracerApi);
-    }
+    userTable.grantReadWriteData(workoutTracerApi);
 
     const accessLogGroup = new logs.LogGroup(
       this,
@@ -183,6 +179,62 @@ export class ApiStack extends Stack {
           dataTraceEnabled: true,
           description: `WorkoutTracer-ApiGateway-Deployment-${stage}`,
         },
+      },
+    );
+
+    // === CloudWatch Metrics for API Gateway ===
+    const apiGatewayName = `WorkoutTracer-Api-${stage}`;
+    const apiStageName = this.api.deploymentStage.stageName;
+
+    // 2XX metric
+    const api2xxMetric = new cloudwatch.Metric({
+      namespace: "AWS/ApiGateway",
+      metricName: "2XXError",
+      dimensionsMap: {
+        ApiName: apiGatewayName,
+        Stage: apiStageName,
+      },
+      statistic: "Sum",
+      period: Duration.minutes(5),
+    });
+
+    // 4XX metric
+    const api4xxMetric = new cloudwatch.Metric({
+      namespace: "AWS/ApiGateway",
+      metricName: "4XXError",
+      dimensionsMap: {
+        ApiName: apiGatewayName,
+        Stage: apiStageName,
+      },
+      statistic: "Sum",
+      period: Duration.minutes(5),
+    });
+
+    // 5XX metric
+    const api5xxMetric = new cloudwatch.Metric({
+      namespace: "AWS/ApiGateway",
+      metricName: "5XXError",
+      dimensionsMap: {
+        ApiName: apiGatewayName,
+        Stage: apiStageName,
+      },
+      statistic: "Sum",
+      period: Duration.minutes(5),
+    });
+
+    // === Alarm for 5XX errors ===
+    const api5xxAlarm = new cloudwatch.Alarm(
+      this,
+      `WorkoutTracer-Api-5XXAlarm-${stage}`,
+      {
+        metric: api5xxMetric,
+        threshold: 1,
+        evaluationPeriods: 1,
+        datapointsToAlarm: 1,
+        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        alarmDescription: `WorkoutTracer-Api-5XXAlarm-${stage}: Alarm if any 5XX errors occur on API Gateway (${stage})`,
+        comparisonOperator:
+          cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
       },
     );
   }
