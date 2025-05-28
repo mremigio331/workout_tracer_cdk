@@ -8,6 +8,7 @@ import {
   aws_cognito as cognito,
   aws_cloudwatch as cloudwatch,
   aws_dynamodb as dynamodb,
+  aws_kms as kms,
 } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
@@ -29,6 +30,12 @@ export class ApiStack extends Stack {
     super(scope, id, props);
 
     const { apiDomainName, userPool, userPoolClient, userTable, stage } = props;
+
+    const kmsKey = new kms.Key(this, `WorkoutTracer-KMSKey-${stage}`, {
+      description: `KMS Key for WorkoutTracer API Stack - ${stage}`,
+      enableKeyRotation: true,
+      alias: `alias/WorkoutTracer/API/${stage}`,
+    });
 
     const apiGwLogsRole = new iam.Role(
       this,
@@ -100,12 +107,14 @@ export class ApiStack extends Stack {
           COGNITO_USER_POOL_ID: userPool.userPoolId,
           COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
           COGNITO_API_REDIRECT_URI: apiDomainName,
-          COGNITO_DOMAIN: `https://workouttracer-${stage}}.auth.us-west-2.amazoncognito.com`,
+          COGNITO_DOMAIN: `https://workouttracer-${stage}.auth.us-west-2.amazoncognito.com`,
           STAGE: stage,
+          KMS_KEY_ARN: kmsKey.keyArn,
         },
       },
     );
 
+    kmsKey.grantEncryptDecrypt(workoutTracerApi);
     userTable.grantReadWriteData(workoutTracerApi);
 
     const accessLogGroup = new logs.LogGroup(
