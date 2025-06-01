@@ -140,9 +140,7 @@ export class WebsiteStack extends Stack {
         logBucket: loggingBucket,
         logFilePrefix: "cloudfront-access/",
         defaultBehavior: {
-          origin: new origins.S3Origin(this.siteBucket, {
-            originAccessIdentity: oai,
-          }),
+          origin: new origins.S3StaticWebsiteOrigin(this.siteBucket),
           viewerProtocolPolicy:
             cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         },
