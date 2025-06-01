@@ -235,23 +235,7 @@ export class PipelineStack extends Stack {
       }),
     );
 
-    // Example: Define your stack names in order for Staging and Prod
-    const stagingStacks = [
-      "WorkoutTracer-DatabaseStack-Staging",
-      "WorkoutTracer-AuthStack-Staging",
-      "WorkoutTracer-WebsiteStack-Staging",
-      "WorkoutTracer-ApiStack-Staging",
-      "WorkoutTracer-ApiDnsStack-Staging",
-    ];
-    const prodStacks = [
-      "WorkoutTracer-DatabaseStack-Prod",
-      "WorkoutTracer-AuthStack-Prod",
-      "WorkoutTracer-WebsiteStack-Prod",
-      "WorkoutTracer-ApiStack-Prod",
-      "WorkoutTracer-ApiDnsStack-Prod",
-    ];
-
-    // Staging Deploy Project: cdk deploy for staging (one action per stack)
+    // Staging Deploy Project: cdk deploy for all staging stacks in one command
     const stagingDeployProject = new codebuild.PipelineProject(
       this,
       "WorkoutTracer-StagingDeployProject",
@@ -265,7 +249,6 @@ export class PipelineStack extends Stack {
               value: "GithubToken:GITHUB_TOKEN",
             },
             CICD: { value: "true" },
-            // Use only the secret name, not a key, for a plaintext JSON secret
             CDK_ENV_CONFIG: {
               type: codebuild.BuildEnvironmentVariableType.SECRETS_MANAGER,
               value: "workout_tracer/cdk.env",
@@ -295,7 +278,10 @@ export class PipelineStack extends Stack {
               commands: ["npm install -g aws-cdk", "npx tsc"],
             },
             build: {
-              commands: ["cdk deploy $STACK_NAME --require-approval never"],
+              commands: [
+                // Deploy all Staging stacks in one go
+                "cdk list | grep 'Staging' | xargs -n 1 cdk deploy --require-approval never",
+              ],
             },
           },
         }),
@@ -303,7 +289,7 @@ export class PipelineStack extends Stack {
       },
     );
 
-    // Prod Deploy Project: cdk deploy for prod (one action per stack)
+    // Prod Deploy Project: cdk deploy for all prod stacks in one command
     const prodDeployProject = new codebuild.PipelineProject(
       this,
       "WorkoutTracer-ProdDeployProject",
@@ -337,7 +323,6 @@ export class PipelineStack extends Stack {
           phases: {
             install: {
               commands: [
-                // No need to unzip; artifact is already present in working directory
                 "ls -al workout_tracer_api || true",
                 "cd workout_tracer_cdk",
                 "npm ci",
@@ -347,7 +332,10 @@ export class PipelineStack extends Stack {
               commands: ["npm install -g aws-cdk", "npx tsc"],
             },
             build: {
-              commands: ["cdk deploy $STACK_NAME --require-approval never"],
+              commands: [
+                // Deploy all Prod stacks in one go
+                "cdk list | grep 'Prod' | xargs -n 1 cdk deploy --require-approval never",
+              ],
             },
           },
         }),
@@ -489,13 +477,15 @@ export class PipelineStack extends Stack {
             ProjectName: stagingDeployProject.projectName,
           },
           statistic: "Sum",
-          period: Duration.minutes(5),
+          period: Duration.minutes(30),
         }),
         threshold: 0,
         evaluationPeriods: 1,
         comparisonOperator:
           cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
         treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        datapointsToAlarm: 1,
+        actionsEnabled: true,
       },
     );
     stagingDeployAlarm.addAlarmAction(
@@ -558,35 +548,27 @@ export class PipelineStack extends Stack {
     // Staging deploy stage: one action per stack
     pipeline.addStage({
       stageName: "Staging",
-      actions: stagingStacks.map(
-        (stackName, idx) =>
-          new codepipeline_actions.CodeBuildAction({
-            actionName: `Deploy-${stackName}`,
-            project: stagingDeployProject,
-            input: buildArtifact,
-            environmentVariables: {
-              STACK_NAME: { value: stackName },
-            },
-            runOrder: idx + 1,
-          }),
-      ),
+      actions: [
+        new codepipeline_actions.CodeBuildAction({
+          actionName: "Deploy-Staging",
+          project: stagingDeployProject,
+          input: buildArtifact,
+          runOrder: 1,
+        }),
+      ],
     });
 
     // Prod deploy stage: one action per stack
     pipeline.addStage({
       stageName: "Prod",
-      actions: prodStacks.map(
-        (stackName, idx) =>
-          new codepipeline_actions.CodeBuildAction({
-            actionName: `Deploy-${stackName}`,
-            project: prodDeployProject,
-            input: buildArtifact,
-            environmentVariables: {
-              STACK_NAME: { value: stackName },
-            },
-            runOrder: idx + 1,
-          }),
-      ),
+      actions: [
+        new codepipeline_actions.CodeBuildAction({
+          actionName: "Deploy-Prod",
+          project: prodDeployProject,
+          input: buildArtifact,
+          runOrder: 1,
+        }),
+      ],
     });
   }
 }
