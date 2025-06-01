@@ -280,7 +280,7 @@ export class PipelineStack extends Stack {
             build: {
               commands: [
                 // Deploy all Staging stacks in one go
-                "cdk list | grep 'Staging' | xargs -n 1 cdk deploy --require-approval never",
+                "cdk list | grep 'Staging' | xargs -r -n 1 cdk deploy --require-approval never",
               ],
             },
           },
