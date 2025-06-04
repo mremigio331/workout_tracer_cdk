@@ -11,7 +11,7 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as path from "path";
 import * as logs from "aws-cdk-lib/aws-logs";
-import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
+import { addAuthMonitoring } from "../monitoring/authMonitoring";
 
 interface AuthStackProps extends StackProps {
   callbackUrls: string[];
@@ -83,36 +83,8 @@ export class AuthStack extends Stack {
     userTable.grantReadWriteData(userEventLogger);
     userTable.grantWriteData(userEventLogger);
 
-    // CloudWatch Metric Filter for ERROR log lines
-    const errorMetric = new logs.MetricFilter(
-      this,
-      `UserEventLoggerErrorMetric-${stage}`,
-      {
-        logGroup,
-        metricNamespace: "WorkoutTracer/UserEventLogger",
-        metricName: `ErrorCount-${stage}`,
-        filterPattern: logs.FilterPattern.literal('"ERROR"'),
-        metricValue: "1",
-      },
-    );
-
-    // CloudWatch Alarm for ERROR log lines in the last 30 minutes
-    const errorAlarm = new cloudwatch.Alarm(
-      this,
-      `UserEventLoggerErrorAlarm-${stage}`,
-      {
-        alarmName: `WorkoutTracer-UserEventLogger-ErrorAlarm-${stage}`,
-        metric: errorMetric.metric({
-          statistic: "Sum",
-          period: Duration.minutes(30),
-        }),
-        threshold: 0,
-        evaluationPeriods: 1,
-        comparisonOperator:
-          cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
-      },
-    );
+    // CloudWatch Metric Filter and Alarm for Lambda errors
+    addAuthMonitoring(this, logGroup, stage);
 
     this.userPool = new cognito.UserPool(
       this,

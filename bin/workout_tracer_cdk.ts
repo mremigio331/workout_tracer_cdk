@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import * as cdk from "aws-cdk-lib";
-import { STAGES } from "../lib/constatns";
+import { STAGES } from "../lib/constants";
 import { DatabaseStack } from "../lib/stacks/database-stack";
 import { AuthStack } from "../lib/stacks/auth-stack";
 import { WebsiteStack } from "../lib/stacks/website-stack";
