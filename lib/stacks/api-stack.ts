@@ -107,6 +107,7 @@ export class ApiStack extends Stack {
           COGNITO_USER_POOL_ID: userPool.userPoolId,
           COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
           COGNITO_API_REDIRECT_URI: apiDomainName,
+          COGNITO_REGION: "us-west-2",
           COGNITO_DOMAIN: `https://workouttracer-${stage}.auth.us-west-2.amazoncognito.com`,
           STAGE: stage,
           KMS_KEY_ARN: kmsKey.keyArn,

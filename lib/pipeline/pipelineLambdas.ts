@@ -34,6 +34,9 @@ export function createWebhookAuthorizerLambda(scope: Stack, githubSecret: secret
         path.join(__dirname, "../../../workout_tracer_api"),
       ),
       timeout: Duration.seconds(5),
+      environment: {
+        GITHUB_WEBHOOK_SECRET_ARN: githubSecret.secretArn,
+      },
     },
   );
   githubSecret.grantRead(fn);
