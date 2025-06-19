@@ -114,6 +114,17 @@ export class ApiStack extends Stack {
       },
     );
 
+    // Grant permissions for Lambda to write custom metrics to CloudWatch
+    workoutTracerApi.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "cloudwatch:PutMetricData",
+        ],
+        resources: ["*"],
+      }),
+    );
+
     kmsKey.grantEncryptDecrypt(workoutTracerApi);
     userTable.grantReadWriteData(workoutTracerApi);
 
