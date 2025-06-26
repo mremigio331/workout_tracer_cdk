@@ -6,6 +6,7 @@ import { AuthStack } from "../lib/stacks/auth-stack";
 import { WebsiteStack } from "../lib/stacks/website-stack";
 import { ApiStack } from "../lib/stacks/api-stack";
 import { ApiDnsStack } from "../lib/stacks/api-dns-stack";
+import { WorkoutTracerRateLimitedBatcherStack } from "../lib/stacks/strava-batch-workout-stack";
 import * as fs from "fs";
 import * as path from "path";
 import { PipelineStack } from "../lib/stacks/pipeline-stack";
@@ -107,6 +108,17 @@ async function main() {
       api: api.api,
       certificateArn: apiCertificateArn,
     });
+
+    new WorkoutTracerRateLimitedBatcherStack(
+      app,
+      `WorkoutTracer-RateLimitedBatcherStack-${stage}`,
+      {
+        env: awsEnv,
+        stage,
+        userTable: databaseStack.table,
+        kmsKey: api.kmsKey,
+      }
+    );
   }
 }
 

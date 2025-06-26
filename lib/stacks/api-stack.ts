@@ -25,6 +25,7 @@ interface ApiStackProps extends StackProps {
 export class ApiStack extends Stack {
   public readonly api: apigw.LambdaRestApi;
   public readonly identityPool: cognito.CfnIdentityPool;
+  public readonly kmsKey: kms.IKey;
 
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
@@ -36,6 +37,7 @@ export class ApiStack extends Stack {
       enableKeyRotation: true,
       alias: `alias/WorkoutTracer/API/${stage}`,
     });
+    this.kmsKey = kmsKey;
 
     const apiGwLogsRole = new iam.Role(
       this,
@@ -111,6 +113,7 @@ export class ApiStack extends Stack {
           COGNITO_DOMAIN: `https://workouttracer-${stage}.auth.us-west-2.amazoncognito.com`,
           STAGE: stage,
           KMS_KEY_ARN: kmsKey.keyArn,
+          DLQ_NAME: `WorkoutTracer-RateLimitedBatcherQueue-${stage}`
         },
       },
     );
@@ -123,6 +126,25 @@ export class ApiStack extends Stack {
           "cloudwatch:PutMetricData",
         ],
         resources: ["*"],
+      }),
+    );
+
+    // Grant permissions to interact with SQS queue
+    workoutTracerApi.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "sqs:SendMessage",
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+          "sqs:GetQueueUrl",
+          "sqs:ChangeMessageVisibility",
+        ],
+        resources: [
+          `arn:aws:sqs:${this.region}:${this.account}:WorkoutTracer-RateLimitedBatcherQueue-${stage}`,
+          `arn:aws:sqs:${this.region}:${this.account}:WorkoutTracer-RateLimitedBatcherDLQ-${stage}`,
+        ],
       }),
     );
 
