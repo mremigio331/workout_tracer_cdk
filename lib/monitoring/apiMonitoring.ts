@@ -1,12 +1,25 @@
-import { Stack, Duration, aws_cloudwatch as cloudwatch, aws_apigateway as apigw } from "aws-cdk-lib";
+import { Stack, Duration, aws_cloudwatch as cloudwatch, aws_apigateway as apigw, aws_sns as sns, aws_sns_subscriptions as subs } from "aws-cdk-lib";
+import * as cloudwatch_actions from "aws-cdk-lib/aws-cloudwatch-actions";
 
 export function addApiMonitoring(
   scope: Stack,
   api: apigw.LambdaRestApi,
-  stage: string
+  stage: string,
+  escalationEmail: string,
+  escalationNumber: string
 ) {
   const apiGatewayName = `WorkoutTracer-Api-${stage}`;
   const apiStageName = api.deploymentStage.stageName;
+
+  // Create SNS Topic for alarm notifications
+  const alarmTopic = new sns.Topic(scope, `WorkoutTracer-ApiAlarmTopic-${stage}`, {
+    topicName: `WorkoutTracer-ApiAlarmTopic-${stage}`,
+    displayName: `WorkoutTracer API Alarm Topic (${stage})`,
+  });
+
+  // Add email and SMS subscriptions
+  alarmTopic.addSubscription(new subs.EmailSubscription(escalationEmail));
+  alarmTopic.addSubscription(new subs.SmsSubscription(escalationNumber));
 
   // 2XX metric
   const api2xxMetric = new cloudwatch.Metric({
@@ -56,7 +69,7 @@ export function addApiMonitoring(
   });
 
   // Alarm for 4XX error rate > 40%
-  new cloudwatch.Alarm(
+  const alarm4xx = new cloudwatch.Alarm(
     scope,
     `WorkoutTracer-Api-4XXRateAlarm-${stage}`,
     {
@@ -69,8 +82,11 @@ export function addApiMonitoring(
       alarmDescription: `WorkoutTracer-Api-4XXRateAlarm-${stage}: Alarm if 4XX error rate exceeds 40% on API Gateway (${stage})`,
       comparisonOperator:
         cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      actionsEnabled: true,
     },
   );
+  alarm4xx.addAlarmAction(new cloudwatch_actions.SnsAction(alarmTopic));
+  alarm4xx.addOkAction(new cloudwatch_actions.SnsAction(alarmTopic));
 
   // 5XX metric
   const api5xxMetric = new cloudwatch.Metric({
@@ -85,7 +101,7 @@ export function addApiMonitoring(
   });
 
   // === Alarm for 5XX errors ===
-  new cloudwatch.Alarm(
+  const alarm5xx = new cloudwatch.Alarm(
     scope,
     `WorkoutTracer-Api-5XXAlarm-${stage}`,
     {
@@ -98,6 +114,9 @@ export function addApiMonitoring(
       alarmDescription: `WorkoutTracer-Api-5XXAlarm-${stage}: Alarm if any 5XX errors occur on API Gateway (${stage})`,
       comparisonOperator:
         cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      actionsEnabled: true,
     },
   );
+  alarm5xx.addAlarmAction(new cloudwatch_actions.SnsAction(alarmTopic));
+  alarm5xx.addOkAction(new cloudwatch_actions.SnsAction(alarmTopic));
 }

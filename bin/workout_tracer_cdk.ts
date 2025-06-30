@@ -6,7 +6,7 @@ import { AuthStack } from "../lib/stacks/auth-stack";
 import { WebsiteStack } from "../lib/stacks/website-stack";
 import { ApiStack } from "../lib/stacks/api-stack";
 import { ApiDnsStack } from "../lib/stacks/api-dns-stack";
-import { WorkoutTracerRateLimitedBatcherStack } from "../lib/stacks/strava-batch-workout-stack";
+import { WorkoutTracerStravaStack } from "../lib/stacks/strava-stack";
 import * as fs from "fs";
 import * as path from "path";
 import { PipelineStack } from "../lib/stacks/pipeline-stack";
@@ -51,6 +51,7 @@ async function main() {
 
   for (const stage of Object.keys(envConfig)) {
     const config = envConfig[stage];
+    console.log(`[CDK ENV DETECT] Deploying stage: ${stage}`, config);
 
     const {
       hostedZoneId,
@@ -59,6 +60,8 @@ async function main() {
       callbackUrls,
       websiteCertificateArn,
       apiCertificateArn,
+      escalationEmail,
+      escalationNumber,
     } = config;
 
     // Database stack
@@ -77,6 +80,8 @@ async function main() {
       stage,
       callbackUrls,
       userTable: databaseStack.table,
+      escalationEmail,
+      escalationNumber,
     });
 
     // Website stack
@@ -96,6 +101,8 @@ async function main() {
       userPool: authStack.userPool,
       userPoolClient: authStack.userPoolClient,
       userTable: databaseStack.table,
+      escalationEmail: escalationEmail,
+      escalationNumber: escalationNumber,
     });
 
     // API DNS stack
@@ -109,7 +116,7 @@ async function main() {
       certificateArn: apiCertificateArn,
     });
 
-    new WorkoutTracerRateLimitedBatcherStack(
+    new WorkoutTracerStravaStack(
       app,
       `WorkoutTracer-RateLimitedBatcherStack-${stage}`,
       {

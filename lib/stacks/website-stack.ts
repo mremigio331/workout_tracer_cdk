@@ -5,6 +5,7 @@ import {
   aws_logs as logs,
   aws_iam as iam,
   aws_kinesisfirehose as firehose,
+  Duration,
 } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as s3 from "aws-cdk-lib/aws-s3";
@@ -140,13 +141,21 @@ export class WebsiteStack extends Stack {
         logBucket: loggingBucket,
         logFilePrefix: "cloudfront-access/",
         defaultBehavior: {
-          // Use the S3 bucket as the origin until I can figure out how to use `S3BucketOrigin` or `S3StaticWebsiteOrigin` instead.
           origin: new origins.S3Origin(this.siteBucket, {
             originAccessIdentity: oai,
           }),
           viewerProtocolPolicy:
             cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          responseHeadersPolicy: undefined,
         },
+        errorResponses: [
+          {
+            httpStatus: 404,
+            responseHttpStatus: 200,
+            responsePagePath: "/index.html",
+            ttl: Duration.minutes(5),
+          },
+        ],
       },
     );
 
@@ -162,6 +171,17 @@ export class WebsiteStack extends Stack {
       path.join(__dirname, "../../../workout_tracer_website/dist"),
     );
 
+    // Example: Custom log group for the CDK BucketDeployment Lambda
+    const bucketDeploymentLogGroup = new logs.LogGroup(
+      this,
+      `WorkoutTracer-BucketDeploymentLogGroup-${stage}`,
+      {
+        logGroupName: `/aws/lambda/WorkoutTracer-WebsiteStack-BucketDeployment-${stage}`,
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    );
+
     if (deploymentSource) {
       new s3deploy.BucketDeployment(
         this,
@@ -170,7 +190,7 @@ export class WebsiteStack extends Stack {
           sources: [deploymentSource],
           destinationBucket: this.siteBucket,
           distribution: this.distribution,
-          distributionPaths: ["/*"],
+          distributionPaths: ["/*"], 
         },
       );
     }

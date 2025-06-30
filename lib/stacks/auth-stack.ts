@@ -11,12 +11,16 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as path from "path";
 import * as logs from "aws-cdk-lib/aws-logs";
+import * as sns from "aws-cdk-lib/aws-sns";
+import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
 import { addAuthMonitoring } from "../monitoring/authMonitoring";
 
 interface AuthStackProps extends StackProps {
   callbackUrls: string[];
   stage: string;
   userTable: dynamodb.ITable;
+  escalationEmail: string;
+  escalationNumber: string;
 }
 
 export class AuthStack extends Stack {
@@ -24,11 +28,20 @@ export class AuthStack extends Stack {
   public readonly userPoolClient: cognito.UserPoolClient;
   public readonly userPoolDomain: cognito.UserPoolDomain;
   public readonly identityPool: cognito.CfnIdentityPool;
+  
 
   constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id, props);
 
-    const { callbackUrls, userTable, stage } = props;
+    const { callbackUrls, userTable, stage, escalationEmail, escalationNumber } = props;
+
+    const userAddedTopic = new sns.Topic(this, `UserAddedTopic-${stage}`, {
+      topicName: `WorkoutTracer-UserAddedTopic-${stage}`,
+      displayName: `WorkoutTracer User Added Topic (${stage})`,
+    });
+
+    userAddedTopic.addSubscription(new subs.EmailSubscription(escalationEmail));
+    userAddedTopic.addSubscription(new subs.SmsSubscription(escalationNumber));
 
     const layer = new lambda.LayerVersion(
       this,
@@ -60,14 +73,17 @@ export class AuthStack extends Stack {
         ),
         tracing: lambda.Tracing.ACTIVE, // Enable X-Ray tracing for Lambda
         timeout: Duration.seconds(10),
-        logRetention: 7,
         layers: [layer, powertoolsLayer],
         environment: {
           TABLE_NAME: userTable.tableName,
           POWERTOOLS_LOG_LEVEL: "INFO",
+          USER_ADDED_TOPIC_ARN: userAddedTopic.topicArn, // Pass topic ARN to Lambda
         },
       },
     );
+
+    // Grant Lambda permission to publish to SNS topic
+    userAddedTopic.grantPublish(userEventLogger);
 
     // Create a log group for the Lambda (explicitly, so we can alarm on it)
     const logGroup = new logs.LogGroup(
@@ -138,6 +154,9 @@ export class AuthStack extends Stack {
           callbackUrls,
           logoutUrls: callbackUrls,
         },
+        accessTokenValidity: Duration.hours(24),
+        idTokenValidity: Duration.hours(24),     
+        refreshTokenValidity: Duration.days(7),
       },
     );
 

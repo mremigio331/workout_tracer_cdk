@@ -20,6 +20,8 @@ interface ApiStackProps extends StackProps {
   userPoolClient: cognito.UserPoolClient;
   stage: string;
   userTable: dynamodb.ITable;
+  escalationEmail: string,
+  escalationNumber: string
 }
 
 export class ApiStack extends Stack {
@@ -30,7 +32,7 @@ export class ApiStack extends Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    const { apiDomainName, userPool, userPoolClient, userTable, stage } = props;
+    const { apiDomainName, userPool, userPoolClient, userTable, stage, escalationEmail, escalationNumber } = props;
 
     const kmsKey = new kms.Key(this, `WorkoutTracer-KMSKey-${stage}`, {
       description: `KMS Key for WorkoutTracer API Stack - ${stage}`,
@@ -99,7 +101,7 @@ export class ApiStack extends Stack {
         code: lambda.Code.fromAsset(
           path.join(__dirname, "../../../workout_tracer_api"),
         ),
-        timeout: Duration.seconds(10),
+        timeout: Duration.seconds(30),
         layers: [layer],
         logGroup: applicationLogsLogGroup,
         tracing: lambda.Tracing.ACTIVE,
@@ -107,18 +109,22 @@ export class ApiStack extends Stack {
         environment: {
           TABLE_NAME: userTable.tableName,
           COGNITO_USER_POOL_ID: userPool.userPoolId,
-          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
-          COGNITO_API_REDIRECT_URI: apiDomainName,
+          COGNITO_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_API_REDIRECT_URI: `https://${apiDomainName}/`,
           COGNITO_REGION: "us-west-2",
-          COGNITO_DOMAIN: `https://workouttracer-${stage}.auth.us-west-2.amazoncognito.com`,
-          STAGE: stage,
+          COGNITO_DOMAIN:
+            stage.toLowerCase() === "prod"
+              ? "https://workouttracer.auth.us-west-2.amazoncognito.com"
+              : `https://workouttracer-${stage.toLowerCase()}.auth.us-west-2.amazoncognito.com`,
+          STAGE: stage.toLowerCase(),
           KMS_KEY_ARN: kmsKey.keyArn,
-          DLQ_NAME: `WorkoutTracer-RateLimitedBatcherQueue-${stage}`
+          DLQ_NAME: `WorkoutTracer-RateLimitedBatcherQueue-${stage.toLowerCase()}`,
+          API_DOMAIN_NAME: apiDomainName,
+          STRAVA_ONBOARDING_LAMBDA_ARN: `arn:aws:lambda:${this.region}:${this.account}:function:WorkoutTracer-StravaOnboardingLambda-${stage}`,
         },
       },
     );
 
-    // Grant permissions for Lambda to write custom metrics to CloudWatch
     workoutTracerApi.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
@@ -129,7 +135,6 @@ export class ApiStack extends Stack {
       }),
     );
 
-    // Grant permissions to interact with SQS queue
     workoutTracerApi.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
@@ -144,6 +149,26 @@ export class ApiStack extends Stack {
         resources: [
           `arn:aws:sqs:${this.region}:${this.account}:WorkoutTracer-RateLimitedBatcherQueue-${stage}`,
           `arn:aws:sqs:${this.region}:${this.account}:WorkoutTracer-RateLimitedBatcherDLQ-${stage}`,
+        ],
+      }),
+    );
+
+    workoutTracerApi.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["secretsmanager:GetSecretValue"],
+        resources: [
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:StravaKeys*`,
+        ],
+      }),
+    );
+
+    workoutTracerApi.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["lambda:InvokeFunction"],
+        resources: [
+          `arn:aws:lambda:${this.region}:${this.account}:function:WorkoutTracer-StravaOnboardingLambda-${stage}`,
         ],
       }),
     );
@@ -174,7 +199,6 @@ export class ApiStack extends Stack {
       },
     );
 
-    // Create Cognito Authorizer
     const authorizer = new apigw.CognitoUserPoolsAuthorizer(
       this,
       `WorkoutTracer-ApiAuthorizer-${stage}`,
@@ -191,15 +215,21 @@ export class ApiStack extends Stack {
       {
         handler: workoutTracerApi,
         restApiName: `WorkoutTracer-Api-${stage}`,
-        proxy: true,
+        proxy: false, // <-- change to false to allow custom resources
         defaultMethodOptions: {
           authorizationType: apigw.AuthorizationType.COGNITO,
           authorizer,
         },
         defaultCorsPreflightOptions: {
-          allowOrigins: apigw.Cors.ALL_ORIGINS,
+          allowOrigins:
+            stage.toLowerCase() === "prod"
+              ? ["https://workouttracer.com"]
+              : stage.toLowerCase() === "staging"
+                ? ["https://staging.workouttracer.com", "http://localhost:8080"]
+                : ["http://localhost:8080"],
           allowMethods: apigw.Cors.ALL_METHODS,
-          allowHeaders: ["*"],
+          allowHeaders: ["authorization", "content-type"],
+          allowCredentials: true,
         },
         deployOptions: {
           tracingEnabled: true,
@@ -210,12 +240,13 @@ export class ApiStack extends Stack {
             JSON.stringify({
               requestId: "$context.requestId",
               user_id: "$context.authorizer.claims.sub",
-              resourcePath: "$context.resourcePath",
+              resourcePath: "$context.path",
               httpMethod: "$context.httpMethod",
               ip: "$context.identity.sourceIp",
               status: "$context.status",
               errorMessage: "$context.error.message",
               errorResponseType: "$context.error.responseType",
+              auth_raw: "$context.authorizer",
             }),
           ),
           loggingLevel: apigw.MethodLoggingLevel.INFO,
@@ -225,7 +256,59 @@ export class ApiStack extends Stack {
       },
     );
 
-    // === CloudWatch Metrics for API Gateway ===
-    addApiMonitoring(this, this.api, stage);
+    // Create /strava resource first, then add children
+    const stravaResource = this.api.root.addResource("strava");
+
+    const webhookResource = stravaResource.addResource("webhook");
+      webhookResource.addMethod(
+        "GET",
+        new apigw.LambdaIntegration(workoutTracerApi),
+        { authorizationType: apigw.AuthorizationType.NONE }
+      );
+      webhookResource.addMethod(
+        "POST",
+        new apigw.LambdaIntegration(workoutTracerApi),
+        { authorizationType: apigw.AuthorizationType.NONE }
+      );
+
+    const docsResource = this.api.root.addResource("docs");
+    docsResource.addMethod(
+      "GET",
+      new apigw.LambdaIntegration(workoutTracerApi),
+      {
+        authorizationType: apigw.AuthorizationType.NONE,
+      }
+    );
+
+    // Allow unauthenticated access to /docs/{proxy+} (static assets)
+    const docsProxyResource = docsResource.addResource("{proxy+}");
+    docsProxyResource.addMethod(
+      "ANY",
+      new apigw.LambdaIntegration(workoutTracerApi),
+      {
+        authorizationType: apigw.AuthorizationType.NONE,
+      }
+    );
+
+    const openapiResource = this.api.root.addResource("openapi.json");
+    openapiResource.addMethod(
+      "GET",
+      new apigw.LambdaIntegration(workoutTracerApi),
+      {
+        authorizationType: apigw.AuthorizationType.NONE,
+      }
+    );
+
+    const proxyResource = this.api.root.addResource("{proxy+}");
+    proxyResource.addMethod(
+      "ANY",
+      new apigw.LambdaIntegration(workoutTracerApi),
+      {
+        authorizationType: apigw.AuthorizationType.COGNITO,
+        authorizer,
+      }
+    );
+
+    addApiMonitoring(this, this.api, stage, escalationEmail, escalationNumber);
   }
 }
