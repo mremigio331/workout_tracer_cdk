@@ -3,8 +3,9 @@ import { Stack, aws_apigateway as apigateway, aws_lambda as lambda, aws_logs as 
 export function createPipelineApiGateway(
   scope: Stack,
   webhookAuthorizerLambda: lambda.IFunction,
-  pipelineDeplyLambda: lambda.IFunction
+  pipelineDeployLambda: lambda.IFunction
 ) {
+  
   const apiLogGroup = new logs.LogGroup(scope, "WebhookApiLogGroup", {
     logGroupName: "WorkoutTracer-GithubWebhok-API",
     removalPolicy: RemovalPolicy.DESTROY,
@@ -49,11 +50,17 @@ export function createPipelineApiGateway(
 
   webhookResource.addMethod(
     "POST",
-    new apigateway.LambdaIntegration(pipelineDeplyLambda),
+    new apigateway.LambdaIntegration(pipelineDeployLambda, {
+      proxy: true,
+    }),
     {
       authorizer: requestAuthorizer,
       authorizationType: apigateway.AuthorizationType.CUSTOM,
-      methodResponses: [{ statusCode: "200" }],
+      methodResponses: [
+        { statusCode: "200" },
+        { statusCode: "401" },
+        { statusCode: "403" },
+      ],
     },
   );
 

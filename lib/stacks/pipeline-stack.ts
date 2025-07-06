@@ -38,13 +38,13 @@ export class PipelineStack extends Stack {
     // Lambda Layer
     const layer = new lambda.LayerVersion(
       this,
-      `WorkoutTracer-PipelineDeployLambdaLayer`,
+      `WorkoutTracer-PipelineStackLayer`,
       {
         code: lambda.Code.fromAsset(
           path.join(__dirname, "../../../workout_tracer_api/lambda_layer.zip"),
         ),
         compatibleRuntimes: [lambda.Runtime.PYTHON_3_11],
-        description: "WorkoutTracer Lambda layer with dependencies",
+        description: `WorkoutTracer-PipelineStackLayer`,
       },
     );
 
@@ -57,7 +57,30 @@ export class PipelineStack extends Stack {
 
     // Lambda Functions
     const pipelineDeplyLambda = createPipelineDeployLambda(this, layer);
-    const webhookAuthorizerLambda = createWebhookAuthorizerLambda(this, githubSecret);
+    const webhookAuthorizerLambda = createWebhookAuthorizerLambda(this, githubSecret, layer);
+
+    // Grant permission to start the pipeline
+    pipelineDeplyLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["codepipeline:StartPipelineExecution"],
+        resources: [
+          `arn:aws:codepipeline:${this.region}:${this.account}:WorkoutTracerPipeline`
+        ],
+      })
+    );
+
+    // Grant permission to read the GitHub secret from Secrets Manager
+    webhookAuthorizerLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ],
+        resources: [
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:my-github-token*`
+        ],
+      })
+    );
 
     // API Gateway
     const { api, requestAuthorizer } = createPipelineApiGateway(

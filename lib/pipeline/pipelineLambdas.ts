@@ -23,7 +23,7 @@ export function createPipelineDeployLambda(scope: Stack, layer: lambda.LayerVers
   );
 }
 
-export function createWebhookAuthorizerLambda(scope: Stack, githubSecret: secretsmanager.ISecret) {
+export function createWebhookAuthorizerLambda(scope: Stack, githubSecret: secretsmanager.ISecret, layer?: lambda.LayerVersion) {
   const fn = new lambda.Function(
     scope,
     "GitHubWebhookAuthorizer",
@@ -37,6 +37,7 @@ export function createWebhookAuthorizerLambda(scope: Stack, githubSecret: secret
       environment: {
         GITHUB_WEBHOOK_SECRET_ARN: githubSecret.secretArn,
       },
+      layers: layer ? [layer] : [],
     },
   );
   githubSecret.grantRead(fn);

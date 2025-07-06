@@ -102,6 +102,7 @@ export class ApiStack extends Stack {
           path.join(__dirname, "../../../workout_tracer_api"),
         ),
         timeout: Duration.seconds(30),
+        memorySize: 1024,
         layers: [layer],
         logGroup: applicationLogsLogGroup,
         tracing: lambda.Tracing.ACTIVE,
@@ -215,7 +216,7 @@ export class ApiStack extends Stack {
       {
         handler: workoutTracerApi,
         restApiName: `WorkoutTracer-Api-${stage}`,
-        proxy: false, // <-- change to false to allow custom resources
+        proxy: false,
         defaultMethodOptions: {
           authorizationType: apigw.AuthorizationType.COGNITO,
           authorizer,
@@ -260,16 +261,28 @@ export class ApiStack extends Stack {
     const stravaResource = this.api.root.addResource("strava");
 
     const webhookResource = stravaResource.addResource("webhook");
-      webhookResource.addMethod(
-        "GET",
-        new apigw.LambdaIntegration(workoutTracerApi),
-        { authorizationType: apigw.AuthorizationType.NONE }
-      );
-      webhookResource.addMethod(
-        "POST",
-        new apigw.LambdaIntegration(workoutTracerApi),
-        { authorizationType: apigw.AuthorizationType.NONE }
-      );
+    webhookResource.addMethod(
+      "GET",
+      new apigw.LambdaIntegration(workoutTracerApi),
+      { authorizationType: apigw.AuthorizationType.NONE }
+    );
+    webhookResource.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(workoutTracerApi),
+      { authorizationType: apigw.AuthorizationType.NONE }
+    );
+
+    // Add /strava/profile/callback POST endpoint with Cognito authorizer
+    const profileResource = stravaResource.addResource("profile");
+    const callbackResource = profileResource.addResource("callback");
+    callbackResource.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(workoutTracerApi),
+      {
+        authorizationType: apigw.AuthorizationType.COGNITO,
+        authorizer,
+      }
+    );
 
     const docsResource = this.api.root.addResource("docs");
     docsResource.addMethod(
