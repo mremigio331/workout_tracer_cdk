@@ -21,10 +21,9 @@ export function addApiMonitoring(
   alarmTopic.addSubscription(new subs.EmailSubscription(escalationEmail));
   alarmTopic.addSubscription(new subs.SmsSubscription(escalationNumber));
 
-  // 2XX metric
   const api2xxMetric = new cloudwatch.Metric({
     namespace: "AWS/ApiGateway",
-    metricName: "2XXError",
+    metricName: "2XXSuccess", 
     dimensionsMap: {
       ApiName: apiGatewayName,
       Stage: apiStageName,
@@ -68,18 +67,18 @@ export function addApiMonitoring(
     period: Duration.minutes(5),
   });
 
-  // Alarm for 4XX error rate > 40%
+  // Alarm for 4XX error rate > 50% within a 30 minute span
   const alarm4xx = new cloudwatch.Alarm(
     scope,
     `WorkoutTracer-Api-4XXRateAlarm-${stage}`,
     {
       alarmName: `WorkoutTracer-Api-4XXRateAlarm-${stage}`,
       metric: api4xxRate,
-      threshold: 40,
-      evaluationPeriods: 1,
-      datapointsToAlarm: 1,
+      threshold: 50,
+      evaluationPeriods: 6, // 6 x 5min = 30min
+      datapointsToAlarm: 6, // all 6 periods must breach
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
-      alarmDescription: `WorkoutTracer-Api-4XXRateAlarm-${stage}: Alarm if 4XX error rate exceeds 40% on API Gateway (${stage})`,
+      alarmDescription: `WorkoutTracer-Api-4XXRateAlarm-${stage}: Alarm if 4XX error rate exceeds 50% for 30 minutes on API Gateway (${stage})`,
       comparisonOperator:
         cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
       actionsEnabled: true,
