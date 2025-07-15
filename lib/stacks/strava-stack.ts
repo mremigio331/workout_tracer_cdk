@@ -8,6 +8,7 @@ import {
   aws_sqs as sqs,
   aws_kms as kms,
   aws_events as events,
+  aws_cognito as cognito,
   aws_events_targets as targets,
 } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
@@ -18,28 +19,41 @@ interface WorkoutTracerStravaStackProps extends StackProps {
   stage: string;
   userTable: dynamodb.ITable;
   kmsKey: kms.IKey;
+  userPool: cognito.UserPool;
 }
 
 export class WorkoutTracerStravaStack extends Stack {
-  constructor(scope: Construct, id: string, props: WorkoutTracerStravaStackProps) {
+  constructor(
+    scope: Construct,
+    id: string,
+    props: WorkoutTracerStravaStackProps,
+  ) {
     super(scope, id, props);
 
-    const { stage, userTable, kmsKey } = props;
+    const { stage, userTable, kmsKey, userPool } = props;
 
-    const dlq = new sqs.Queue(this, `WorkoutTracer-RateLimitedBatcherDLQ-${stage}`, {
-      queueName: `WorkoutTracer-RateLimitedBatcherDLQ-${stage}`,
-      retentionPeriod: Duration.days(14),
-    });
-
-    const queue = new sqs.Queue(this, `WorkoutTracer-RateLimitedBatcherQueue-${stage}`, {
-      queueName: `WorkoutTracer-RateLimitedBatcherQueue-${stage}`,
-      visibilityTimeout: Duration.seconds(1800),
-      retentionPeriod: Duration.days(7),
-      deadLetterQueue: {
-        maxReceiveCount: 5,
-        queue: dlq,
+    const dlq = new sqs.Queue(
+      this,
+      `WorkoutTracer-RateLimitedBatcherDLQ-${stage}`,
+      {
+        queueName: `WorkoutTracer-RateLimitedBatcherDLQ-${stage}`,
+        retentionPeriod: Duration.days(14),
       },
-    });
+    );
+
+    const queue = new sqs.Queue(
+      this,
+      `WorkoutTracer-RateLimitedBatcherQueue-${stage}`,
+      {
+        queueName: `WorkoutTracer-RateLimitedBatcherQueue-${stage}`,
+        visibilityTimeout: Duration.seconds(1800),
+        retentionPeriod: Duration.days(7),
+        deadLetterQueue: {
+          maxReceiveCount: 5,
+          queue: dlq,
+        },
+      },
+    );
 
     const layer = new lambda.LayerVersion(
       this,
@@ -53,30 +67,39 @@ export class WorkoutTracerStravaStack extends Stack {
       },
     );
 
-    const batchUpdateLogGroup = new logs.LogGroup(this, `WorkoutTracer-BatchUpdateWorkoutsLogGroup-${stage}`, {
-      logGroupName: `/aws/lambda/WorkoutTracer-BatchUpdateWorkoutsLambda-${stage}`,
-      retention: logs.RetentionDays.ONE_MONTH,
-    });
-
-    const batchUpdateLambda = new lambda.Function(this, `WorkoutTracer-BatchUpdateWorkoutsLambda-${stage}`, {
-      functionName: `WorkoutTracer-BatchUpdateWorkoutsLambda-${stage}`,
-      runtime: lambda.Runtime.PYTHON_3_11,
-      handler: "lambdas.batch_update_workouts.lambda_handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "../../../workout_tracer_api")
-      ),
-      timeout: Duration.minutes(15),
-      layers: [layer],
-      environment: {
-        KMS_KEY_ARN: kmsKey.keyArn,
-        SQS_QUEUE_URL: queue.queueUrl,
-        DLQ_URL: dlq.queueUrl,
-        TABLE_NAME: userTable.tableName,
-        STAGE: stage,
+    const batchUpdateLogGroup = new logs.LogGroup(
+      this,
+      `WorkoutTracer-BatchUpdateWorkoutsLogGroup-${stage}`,
+      {
+        logGroupName: `/aws/lambda/WorkoutTracer-BatchUpdateWorkoutsLambda-${stage}`,
+        retention: logs.RetentionDays.ONE_MONTH,
       },
-      description: `Processes Strava workout batch updates from SQS for stage ${stage}`,
-      logGroup: batchUpdateLogGroup,
-    });
+    );
+
+    const batchUpdateLambda = new lambda.Function(
+      this,
+      `WorkoutTracer-BatchUpdateWorkoutsLambda-${stage}`,
+      {
+        functionName: `WorkoutTracer-BatchUpdateWorkoutsLambda-${stage}`,
+        runtime: lambda.Runtime.PYTHON_3_11,
+        handler: "lambdas.batch_update_workouts.lambda_handler",
+        code: lambda.Code.fromAsset(
+          path.join(__dirname, "../../../workout_tracer_api"),
+        ),
+        timeout: Duration.minutes(15),
+        layers: [layer],
+        environment: {
+          KMS_KEY_ARN: kmsKey.keyArn,
+          SQS_QUEUE_URL: queue.queueUrl,
+          DLQ_URL: dlq.queueUrl,
+          TABLE_NAME: userTable.tableName,
+          STAGE: stage,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+        },
+        description: `Processes Strava workout batch updates from SQS for stage ${stage}`,
+        logGroup: batchUpdateLogGroup,
+      },
+    );
 
     userTable.grantReadWriteData(batchUpdateLambda);
     queue.grantConsumeMessages(batchUpdateLambda);
@@ -88,9 +111,9 @@ export class WorkoutTracerStravaStack extends Stack {
         effect: iam.Effect.ALLOW,
         actions: ["secretsmanager:GetSecretValue"],
         resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:StravaKeys*`
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:StravaKeys*`,
         ],
-      })
+      }),
     );
 
     batchUpdateLambda.addToRolePolicy(
@@ -99,10 +122,10 @@ export class WorkoutTracerStravaStack extends Stack {
         actions: [
           "logs:CreateLogGroup",
           "logs:CreateLogStream",
-          "logs:PutLogEvents"
+          "logs:PutLogEvents",
         ],
         resources: ["*"],
-      })
+      }),
     );
 
     batchUpdateLambda.addToRolePolicy(
@@ -110,41 +133,62 @@ export class WorkoutTracerStravaStack extends Stack {
         effect: iam.Effect.ALLOW,
         actions: ["cloudwatch:PutMetricData"],
         resources: ["*"],
-      })
+      }),
     );
 
-    const rule = new events.Rule(this, `WorkoutTracer-BatchUpdateScheduleRule-${stage}`, {
-      ruleName: `WorkoutTracer-BatchUpdateScheduleRule-${stage}`,
-      schedule: events.Schedule.rate(Duration.minutes(30)),
-      description: `Invoke batch update lambda every 30 minutes for ${stage}`,
-      enabled: true,
-    });
+    // Add Cognito permissions for batchUpdateLambda
+    batchUpdateLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["cognito-idp:AdminGetUser"],
+        resources: [userPool.userPoolArn],
+      }),
+    );
+
+    const rule = new events.Rule(
+      this,
+      `WorkoutTracer-BatchUpdateScheduleRule-${stage}`,
+      {
+        ruleName: `WorkoutTracer-BatchUpdateScheduleRule-${stage}`,
+        schedule: events.Schedule.rate(Duration.minutes(30)),
+        description: `Invoke batch update lambda every 30 minutes for ${stage}`,
+        enabled: true,
+      },
+    );
     rule.addTarget(new targets.LambdaFunction(batchUpdateLambda));
 
-    const onboardingLogGroup = new logs.LogGroup(this, `WorkoutTracer-StravaOnboardingLogGroup-${stage}`, {
-      logGroupName: `/aws/lambda/WorkoutTracer-StravaOnboardingLambda-${stage}`,
-      retention: logs.RetentionDays.ONE_MONTH,
-    });
-
-    const stravaOnboardingLambda = new lambda.Function(this, `WorkoutTracer-StravaOnboardingLambda-${stage}`, {
-      functionName: `WorkoutTracer-StravaOnboardingLambda-${stage}`,
-      runtime: lambda.Runtime.PYTHON_3_11,
-      handler: "lambdas.strava_onboarding.lambda_handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "../../../workout_tracer_api")
-      ),
-      timeout: Duration.minutes(15),
-      layers: [layer],
-      environment: {
-        KMS_KEY_ARN: kmsKey.keyArn,
-        SQS_QUEUE_URL: queue.queueUrl,
-        DLQ_URL: dlq.queueUrl,
-        TABLE_NAME: userTable.tableName,
-        STAGE: stage,
+    const onboardingLogGroup = new logs.LogGroup(
+      this,
+      `WorkoutTracer-StravaOnboardingLogGroup-${stage}`,
+      {
+        logGroupName: `/aws/lambda/WorkoutTracer-StravaOnboardingLambda-${stage}`,
+        retention: logs.RetentionDays.ONE_MONTH,
       },
-      description: `Strava onboarding processor for stage ${stage}`,
-      logGroup: onboardingLogGroup,
-    });
+    );
+
+    const stravaOnboardingLambda = new lambda.Function(
+      this,
+      `WorkoutTracer-StravaOnboardingLambda-${stage}`,
+      {
+        functionName: `WorkoutTracer-StravaOnboardingLambda-${stage}`,
+        runtime: lambda.Runtime.PYTHON_3_11,
+        handler: "lambdas.strava_onboarding.lambda_handler",
+        code: lambda.Code.fromAsset(
+          path.join(__dirname, "../../../workout_tracer_api"),
+        ),
+        timeout: Duration.minutes(15),
+        layers: [layer],
+        environment: {
+          KMS_KEY_ARN: kmsKey.keyArn,
+          SQS_QUEUE_URL: queue.queueUrl,
+          DLQ_URL: dlq.queueUrl,
+          TABLE_NAME: userTable.tableName,
+          STAGE: stage,
+        },
+        description: `Strava onboarding processor for stage ${stage}`,
+        logGroup: onboardingLogGroup,
+      },
+    );
 
     userTable.grantReadWriteData(stravaOnboardingLambda);
     queue.grantConsumeMessages(stravaOnboardingLambda);
@@ -163,11 +207,8 @@ export class WorkoutTracerStravaStack extends Stack {
           "sqs:GetQueueUrl",
           "sqs:ChangeMessageVisibility",
         ],
-        resources: [
-          queue.queueArn,
-          dlq.queueArn,
-        ],
-      })
+        resources: [queue.queueArn, dlq.queueArn],
+      }),
     );
 
     stravaOnboardingLambda.addToRolePolicy(
@@ -175,9 +216,9 @@ export class WorkoutTracerStravaStack extends Stack {
         effect: iam.Effect.ALLOW,
         actions: ["secretsmanager:GetSecretValue"],
         resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:StravaKeys*`
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:StravaKeys*`,
         ],
-      })
+      }),
     );
 
     stravaOnboardingLambda.addToRolePolicy(
@@ -186,10 +227,10 @@ export class WorkoutTracerStravaStack extends Stack {
         actions: [
           "logs:CreateLogGroup",
           "logs:CreateLogStream",
-          "logs:PutLogEvents"
+          "logs:PutLogEvents",
         ],
         resources: ["*"],
-      })
+      }),
     );
 
     stravaOnboardingLambda.addToRolePolicy(
@@ -197,7 +238,93 @@ export class WorkoutTracerStravaStack extends Stack {
         effect: iam.Effect.ALLOW,
         actions: ["cloudwatch:PutMetricData"],
         resources: ["*"],
-      })
+      }),
+    );
+
+    // New Lambda for onboarding_v2
+    const stravaOnboardingV2Lambda = new lambda.Function(
+      this,
+      `WorkoutTracer-StravaOnboardingLambdaV2-${stage}`,
+      {
+        functionName: `WorkoutTracer-StravaOnboardingLambdaV2-${stage}`,
+        runtime: lambda.Runtime.PYTHON_3_11,
+        handler: "lambdas.strava_onboarding_v2.lambda_handler",
+        code: lambda.Code.fromAsset(
+          path.join(__dirname, "../../../workout_tracer_api"),
+        ),
+        timeout: Duration.minutes(15),
+        layers: [layer],
+        environment: {
+          KMS_KEY_ARN: kmsKey.keyArn,
+          SQS_QUEUE_URL: queue.queueUrl,
+          DLQ_URL: dlq.queueUrl,
+          TABLE_NAME: userTable.tableName,
+          STAGE: stage,
+        },
+        description: `Strava onboarding v2 processor for stage ${stage}`,
+        logGroup: onboardingLogGroup,
+      },
+    );
+
+    userTable.grantReadWriteData(stravaOnboardingV2Lambda);
+    queue.grantConsumeMessages(stravaOnboardingV2Lambda);
+    dlq.grantSendMessages(stravaOnboardingV2Lambda);
+    kmsKey.grantEncryptDecrypt(stravaOnboardingV2Lambda);
+
+    stravaOnboardingV2Lambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "sqs:SendMessage",
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+          "sqs:GetQueueUrl",
+          "sqs:ChangeMessageVisibility",
+        ],
+        resources: [queue.queueArn, dlq.queueArn],
+      }),
+    );
+
+    stravaOnboardingV2Lambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["secretsmanager:GetSecretValue"],
+        resources: [
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:StravaKeys*`,
+        ],
+      }),
+    );
+
+    stravaOnboardingV2Lambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+        ],
+        resources: ["*"],
+      }),
+    );
+
+    stravaOnboardingV2Lambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["cloudwatch:PutMetricData"],
+        resources: ["*"],
+      }),
+    );
+
+    // Avoid circular dependency by using the function ARN string directly
+    stravaOnboardingV2Lambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["lambda:InvokeFunction"],
+        resources: [
+          `arn:aws:lambda:${this.region}:${this.account}:function:WorkoutTracer-StravaOnboardingLambdaV2-${stage}`, // <-- Change here
+        ],
+      }),
     );
   }
 }

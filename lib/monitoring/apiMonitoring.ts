@@ -1,4 +1,11 @@
-import { Stack, Duration, aws_cloudwatch as cloudwatch, aws_apigateway as apigw, aws_sns as sns, aws_sns_subscriptions as subs } from "aws-cdk-lib";
+import {
+  Stack,
+  Duration,
+  aws_cloudwatch as cloudwatch,
+  aws_apigateway as apigw,
+  aws_sns as sns,
+  aws_sns_subscriptions as subs,
+} from "aws-cdk-lib";
 import * as cloudwatch_actions from "aws-cdk-lib/aws-cloudwatch-actions";
 
 export function addApiMonitoring(
@@ -6,16 +13,20 @@ export function addApiMonitoring(
   api: apigw.LambdaRestApi,
   stage: string,
   escalationEmail: string,
-  escalationNumber: string
+  escalationNumber: string,
 ) {
   const apiGatewayName = `WorkoutTracer-Api-${stage}`;
   const apiStageName = api.deploymentStage.stageName;
 
   // Create SNS Topic for alarm notifications
-  const alarmTopic = new sns.Topic(scope, `WorkoutTracer-ApiAlarmTopic-${stage}`, {
-    topicName: `WorkoutTracer-ApiAlarmTopic-${stage}`,
-    displayName: `WorkoutTracer API Alarm Topic (${stage})`,
-  });
+  const alarmTopic = new sns.Topic(
+    scope,
+    `WorkoutTracer-ApiAlarmTopic-${stage}`,
+    {
+      topicName: `WorkoutTracer-ApiAlarmTopic-${stage}`,
+      displayName: `WorkoutTracer API Alarm Topic (${stage})`,
+    },
+  );
 
   // Add email and SMS subscriptions
   alarmTopic.addSubscription(new subs.EmailSubscription(escalationEmail));
@@ -23,7 +34,7 @@ export function addApiMonitoring(
 
   const api2xxMetric = new cloudwatch.Metric({
     namespace: "AWS/ApiGateway",
-    metricName: "2XXSuccess", 
+    metricName: "2XXSuccess",
     dimensionsMap: {
       ApiName: apiGatewayName,
       Stage: apiStageName,

@@ -5,7 +5,7 @@ import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 export function addAuthMonitoring(
   scope: Stack,
   logGroup: logs.LogGroup,
-  stage: string
+  stage: string,
 ) {
   // CloudWatch Metric Filter for ERROR log lines
   const errorMetric = new logs.MetricFilter(
@@ -21,20 +21,15 @@ export function addAuthMonitoring(
   );
 
   // CloudWatch Alarm for ERROR log lines in the last 30 minutes
-  new cloudwatch.Alarm(
-    scope,
-    `UserEventLoggerErrorAlarm-${stage}`,
-    {
-      alarmName: `WorkoutTracer-UserEventLogger-ErrorAlarm-${stage}`,
-      metric: errorMetric.metric({
-        statistic: "Sum",
-        period: Duration.minutes(30),
-      }),
-      threshold: 0,
-      evaluationPeriods: 1,
-      comparisonOperator:
-        cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
-    },
-  );
+  new cloudwatch.Alarm(scope, `UserEventLoggerErrorAlarm-${stage}`, {
+    alarmName: `WorkoutTracer-UserEventLogger-ErrorAlarm-${stage}`,
+    metric: errorMetric.metric({
+      statistic: "Sum",
+      period: Duration.minutes(30),
+    }),
+    threshold: 0,
+    evaluationPeriods: 1,
+    comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+    treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+  });
 }

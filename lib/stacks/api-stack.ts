@@ -20,8 +20,8 @@ interface ApiStackProps extends StackProps {
   userPoolClient: cognito.UserPoolClient;
   stage: string;
   userTable: dynamodb.ITable;
-  escalationEmail: string,
-  escalationNumber: string
+  escalationEmail: string;
+  escalationNumber: string;
 }
 
 export class ApiStack extends Stack {
@@ -32,7 +32,15 @@ export class ApiStack extends Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    const { apiDomainName, userPool, userPoolClient, userTable, stage, escalationEmail, escalationNumber } = props;
+    const {
+      apiDomainName,
+      userPool,
+      userPoolClient,
+      userTable,
+      stage,
+      escalationEmail,
+      escalationNumber,
+    } = props;
 
     const kmsKey = new kms.Key(this, `WorkoutTracer-KMSKey-${stage}`, {
       description: `KMS Key for WorkoutTracer API Stack - ${stage}`,
@@ -121,7 +129,7 @@ export class ApiStack extends Stack {
           KMS_KEY_ARN: kmsKey.keyArn,
           DLQ_NAME: `WorkoutTracer-RateLimitedBatcherQueue-${stage.toLowerCase()}`,
           API_DOMAIN_NAME: apiDomainName,
-          STRAVA_ONBOARDING_LAMBDA_ARN: `arn:aws:lambda:${this.region}:${this.account}:function:WorkoutTracer-StravaOnboardingLambda-${stage}`,
+          STRAVA_ONBOARDING_LAMBDA_ARN: `arn:aws:lambda:${this.region}:${this.account}:function:WorkoutTracer-StravaOnboardingLambdaV2-${stage}`,
         },
       },
     );
@@ -129,9 +137,7 @@ export class ApiStack extends Stack {
     workoutTracerApi.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
-        actions: [
-          "cloudwatch:PutMetricData",
-        ],
+        actions: ["cloudwatch:PutMetricData"],
         resources: ["*"],
       }),
     );
@@ -170,6 +176,7 @@ export class ApiStack extends Stack {
         actions: ["lambda:InvokeFunction"],
         resources: [
           `arn:aws:lambda:${this.region}:${this.account}:function:WorkoutTracer-StravaOnboardingLambda-${stage}`,
+          `arn:aws:lambda:${this.region}:${this.account}:function:WorkoutTracer-StravaOnboardingLambdaV2-${stage}`,
         ],
       }),
     );
@@ -264,12 +271,12 @@ export class ApiStack extends Stack {
     webhookResource.addMethod(
       "GET",
       new apigw.LambdaIntegration(workoutTracerApi),
-      { authorizationType: apigw.AuthorizationType.NONE }
+      { authorizationType: apigw.AuthorizationType.NONE },
     );
     webhookResource.addMethod(
       "POST",
       new apigw.LambdaIntegration(workoutTracerApi),
-      { authorizationType: apigw.AuthorizationType.NONE }
+      { authorizationType: apigw.AuthorizationType.NONE },
     );
 
     // Add /strava/profile/callback POST endpoint with Cognito authorizer
@@ -281,7 +288,7 @@ export class ApiStack extends Stack {
       {
         authorizationType: apigw.AuthorizationType.COGNITO,
         authorizer,
-      }
+      },
     );
 
     const docsResource = this.api.root.addResource("docs");
@@ -290,7 +297,7 @@ export class ApiStack extends Stack {
       new apigw.LambdaIntegration(workoutTracerApi),
       {
         authorizationType: apigw.AuthorizationType.NONE,
-      }
+      },
     );
 
     // Allow unauthenticated access to /docs/{proxy+} (static assets)
@@ -300,7 +307,7 @@ export class ApiStack extends Stack {
       new apigw.LambdaIntegration(workoutTracerApi),
       {
         authorizationType: apigw.AuthorizationType.NONE,
-      }
+      },
     );
 
     const openapiResource = this.api.root.addResource("openapi.json");
@@ -309,7 +316,7 @@ export class ApiStack extends Stack {
       new apigw.LambdaIntegration(workoutTracerApi),
       {
         authorizationType: apigw.AuthorizationType.NONE,
-      }
+      },
     );
 
     const proxyResource = this.api.root.addResource("{proxy+}");
@@ -319,7 +326,7 @@ export class ApiStack extends Stack {
       {
         authorizationType: apigw.AuthorizationType.COGNITO,
         authorizer,
-      }
+      },
     );
 
     addApiMonitoring(this, this.api, stage, escalationEmail, escalationNumber);

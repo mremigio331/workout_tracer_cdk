@@ -1,85 +1,93 @@
-import { Stack, aws_codebuild as codebuild, aws_iam as iam, aws_logs as logs, RemovalPolicy, Duration } from "aws-cdk-lib";
+import {
+  Stack,
+  aws_codebuild as codebuild,
+  aws_iam as iam,
+  aws_logs as logs,
+  RemovalPolicy,
+  Duration,
+} from "aws-cdk-lib";
 import * as path from "path";
 
 export function createBuildProject(scope: Stack, role: iam.IRole) {
-  return new codebuild.PipelineProject(
-    scope,
-    "WorkoutTracer-BuildProject",
-    {
-      environment: {
-        buildImage: codebuild.LinuxBuildImage.STANDARD_7_0,
-        privileged: true,
-        environmentVariables: {
-          GITHUB_TOKEN: {
-            type: codebuild.BuildEnvironmentVariableType.SECRETS_MANAGER,
-            value: "GithubToken:GITHUB_TOKEN",
-          },
+  return new codebuild.PipelineProject(scope, "WorkoutTracer-BuildProject", {
+    environment: {
+      buildImage: codebuild.LinuxBuildImage.STANDARD_7_0,
+      privileged: true,
+      environmentVariables: {
+        GITHUB_TOKEN: {
+          type: codebuild.BuildEnvironmentVariableType.SECRETS_MANAGER,
+          value: "GithubToken:GITHUB_TOKEN",
         },
       },
-      logging: {
-        cloudWatch: {
-          logGroup: new logs.LogGroup(scope, "BuildProjectLogGroup", {
-            logGroupName: "/aws/codebuild/WorkoutTracer-Pipeline",
-            removalPolicy: RemovalPolicy.DESTROY,
-            retention: logs.RetentionDays.ONE_MONTH,
-          }),
-        },
+    },
+    logging: {
+      cloudWatch: {
+        logGroup: new logs.LogGroup(scope, "BuildProjectLogGroup", {
+          logGroupName: "/aws/codebuild/WorkoutTracer-Pipeline",
+          removalPolicy: RemovalPolicy.DESTROY,
+          retention: logs.RetentionDays.ONE_MONTH,
+        }),
       },
-      buildSpec: codebuild.BuildSpec.fromObject({
-        version: "0.2",
-        phases: {
-          install: {
-            commands: [
-              'echo "Configuring git for GitHub token..."',
-              'git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"',
-              "git clone https://github.com/mremigio331/workout_tracer_cdk.git",
-              "git clone https://github.com/mremigio331/workout_tracer_website.git",
-              "git clone https://github.com/mremigio331/workout_tracer_api.git",
-              "cd workout_tracer_cdk",
-              "npm install",
-              "cd .."
-            ],
-          },
-          pre_build: {
-            commands: [
-              "ls",
-              'echo "Building website..."',
-              "cd workout_tracer_website",
-              "npm install",
-              'npm run build || npm run build:prod || echo "No build script found"',
-              "cd ..",
-              'echo "Installing CDK dependencies..."',
-              "cd workout_tracer_cdk",
-              "npm run build",
-              "cd ..",
-              'echo "Preparing API Lambda layer..."',
-              "cd workout_tracer_api",
-              "ls -al",
-              "chmod +x create_lambda_layer.sh",
-              "./create_lambda_layer.sh",
-              "cd ..",
-            ],
-          },
-          build: {
-            commands: ['echo "Build complete."'],
-          },
-        },
-        artifacts: {
-          "base-directory": ".",
-          files: [
-            "workout_tracer_api/**/*",
-            "workout_tracer_website/**/*",
-            "workout_tracer_cdk/**/*",
+    },
+    buildSpec: codebuild.BuildSpec.fromObject({
+      version: "0.2",
+      phases: {
+        install: {
+          commands: [
+            'echo "Configuring git for GitHub token..."',
+            'git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"',
+            "git clone https://github.com/mremigio331/workout_tracer_cdk.git",
+            "git clone https://github.com/mremigio331/workout_tracer_website.git",
+            "git clone https://github.com/mremigio331/workout_tracer_api.git",
+            "cd workout_tracer_cdk",
+            "npm install",
+            "cd ..",
           ],
         },
-      }),
-      role,
-    },
-  );
+        pre_build: {
+          commands: [
+            "ls",
+            'echo "Building website..."',
+            "cd workout_tracer_website",
+            "npm install",
+            'npm run build || npm run build:prod || echo "No build script found"',
+            "cd ..",
+            'echo "Installing CDK dependencies..."',
+            "cd workout_tracer_cdk",
+            "npm run build",
+            "cd ..",
+            'echo "Preparing API Lambda layer..."',
+            "cd workout_tracer_api",
+            "ls -al",
+            "chmod +x create_lambda_layer.sh",
+            "./create_lambda_layer.sh",
+            "cd ..",
+          ],
+        },
+        build: {
+          commands: ['echo "Build complete."'],
+        },
+      },
+      artifacts: {
+        "base-directory": ".",
+        files: [
+          "workout_tracer_api/**/*",
+          "workout_tracer_website/**/*",
+          "workout_tracer_cdk/**/*",
+        ],
+      },
+    }),
+    role,
+  });
 }
 
 export function createStagingDeployProject(scope: Stack, role: iam.IRole) {
-  const stackToDeploy = ['DatabaseStack', 'AuthStack', 'ApiStack', 'ApiDnsStack'];
+  const stackToDeploy = [
+    "DatabaseStack",
+    "AuthStack",
+    "ApiStack",
+    "ApiDnsStack",
+  ];
   return new codebuild.PipelineProject(
     scope,
     "WorkoutTracer-StagingDeployProject",
@@ -123,7 +131,7 @@ export function createStagingDeployProject(scope: Stack, role: iam.IRole) {
           },
           build: {
             commands: [
-              `cdk deploy ${stackToDeploy.map(stack => `WorkoutTracer-${stack}-Staging`).join(' ')} --require-approval never`,
+              `cdk deploy ${stackToDeploy.map((stack) => `WorkoutTracer-${stack}-Staging`).join(" ")} --require-approval never`,
             ],
           },
         },
@@ -134,7 +142,12 @@ export function createStagingDeployProject(scope: Stack, role: iam.IRole) {
 }
 
 export function createProdDeployProject(scope: Stack, role: iam.IRole) {
-  const stackToDeploy = ['DatabaseStack', 'AuthStack', 'ApiStack', 'ApiDnsStack'];
+  const stackToDeploy = [
+    "DatabaseStack",
+    "AuthStack",
+    "ApiStack",
+    "ApiDnsStack",
+  ];
   return new codebuild.PipelineProject(
     scope,
     "WorkoutTracer-ProdDeployProject",
@@ -178,7 +191,7 @@ export function createProdDeployProject(scope: Stack, role: iam.IRole) {
           },
           build: {
             commands: [
-              `cdk deploy ${stackToDeploy.map(stack => `WorkoutTracer-${stack}-Prod`).join(' ')} --require-approval never`,
+              `cdk deploy ${stackToDeploy.map((stack) => `WorkoutTracer-${stack}-Prod`).join(" ")} --require-approval never`,
             ],
           },
         },

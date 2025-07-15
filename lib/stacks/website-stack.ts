@@ -190,7 +190,7 @@ export class WebsiteStack extends Stack {
           sources: [deploymentSource],
           destinationBucket: this.siteBucket,
           distribution: this.distribution,
-          distributionPaths: ["/*"], 
+          distributionPaths: ["/*"],
         },
       );
     }

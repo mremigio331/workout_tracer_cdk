@@ -1,11 +1,17 @@
-import { Stack, aws_apigateway as apigateway, aws_lambda as lambda, aws_logs as logs, RemovalPolicy, Duration } from "aws-cdk-lib";
+import {
+  Stack,
+  aws_apigateway as apigateway,
+  aws_lambda as lambda,
+  aws_logs as logs,
+  RemovalPolicy,
+  Duration,
+} from "aws-cdk-lib";
 
 export function createPipelineApiGateway(
   scope: Stack,
   webhookAuthorizerLambda: lambda.IFunction,
-  pipelineDeployLambda: lambda.IFunction
+  pipelineDeployLambda: lambda.IFunction,
 ) {
-  
   const apiLogGroup = new logs.LogGroup(scope, "WebhookApiLogGroup", {
     logGroupName: "WorkoutTracer-GithubWebhok-API",
     removalPolicy: RemovalPolicy.DESTROY,

@@ -124,7 +124,8 @@ async function main() {
         stage,
         userTable: databaseStack.table,
         kmsKey: api.kmsKey,
-      }
+        userPool: authStack.userPool,
+      },
     );
   }
 }

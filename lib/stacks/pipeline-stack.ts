@@ -57,16 +57,20 @@ export class PipelineStack extends Stack {
 
     // Lambda Functions
     const pipelineDeplyLambda = createPipelineDeployLambda(this, layer);
-    const webhookAuthorizerLambda = createWebhookAuthorizerLambda(this, githubSecret, layer);
+    const webhookAuthorizerLambda = createWebhookAuthorizerLambda(
+      this,
+      githubSecret,
+      layer,
+    );
 
     // Grant permission to start the pipeline
     pipelineDeplyLambda.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["codepipeline:StartPipelineExecution"],
         resources: [
-          `arn:aws:codepipeline:${this.region}:${this.account}:WorkoutTracerPipeline`
+          `arn:aws:codepipeline:${this.region}:${this.account}:WorkoutTracerPipeline`,
         ],
-      })
+      }),
     );
 
     // Grant permission to read the GitHub secret from Secrets Manager
@@ -74,12 +78,12 @@ export class PipelineStack extends Stack {
       new iam.PolicyStatement({
         actions: [
           "secretsmanager:GetSecretValue",
-          "secretsmanager:DescribeSecret"
+          "secretsmanager:DescribeSecret",
         ],
         resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:my-github-token*`
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:my-github-token*`,
         ],
-      })
+      }),
     );
 
     // API Gateway
@@ -103,7 +107,10 @@ export class PipelineStack extends Stack {
 
     // CodeBuild Projects
     const buildProject = createBuildProject(this, cdkPipelineRole);
-    const stagingDeployProject = createStagingDeployProject(this, cdkPipelineRole);
+    const stagingDeployProject = createStagingDeployProject(
+      this,
+      cdkPipelineRole,
+    );
     const prodDeployProject = createProdDeployProject(this, cdkPipelineRole);
 
     // S3 Bucket
@@ -155,7 +162,7 @@ export class PipelineStack extends Stack {
       pipeline,
       buildProject,
       stagingDeployProject,
-      prodDeployProject
+      prodDeployProject,
     );
 
     // Staging deploy stage: one action per stack

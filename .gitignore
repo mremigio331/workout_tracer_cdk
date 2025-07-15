@@ -9,3 +9,4 @@ cdk.out
 .npmrc
 
 cdk.env.json
+cdk.env

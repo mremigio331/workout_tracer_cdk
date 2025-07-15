@@ -14,7 +14,7 @@ export function addPipelineMonitoring(
   pipeline: codepipeline.Pipeline,
   buildProject: codebuild.PipelineProject,
   stagingDeployProject: codebuild.PipelineProject,
-  prodDeployProject: codebuild.PipelineProject
+  prodDeployProject: codebuild.PipelineProject,
 ) {
   // CloudWatch Alarms for failed deployments
   // Staging
@@ -35,8 +35,7 @@ export function addPipelineMonitoring(
       }),
       threshold: 0,
       evaluationPeriods: 1,
-      comparisonOperator:
-        cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
     },
   );
@@ -99,8 +98,7 @@ export function addPipelineMonitoring(
       }),
       threshold: 0,
       evaluationPeriods: 1,
-      comparisonOperator:
-        cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
       datapointsToAlarm: 1,
       actionsEnabled: true,
@@ -127,39 +125,29 @@ export function addPipelineMonitoring(
       }),
       threshold: 0,
       evaluationPeriods: 1,
-      comparisonOperator:
-        cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
     },
   );
-  prodDeployAlarm.addAlarmAction(
-    new cloudwatch_actions.SnsAction(alarmTopic),
-  );
+  prodDeployAlarm.addAlarmAction(new cloudwatch_actions.SnsAction(alarmTopic));
 
   // CloudWatch Alarm for build stage (pipeline-level, not CodeBuild project)
-  const buildStageAlarm = new cloudwatch.Alarm(
-    scope,
-    "BuildStageFailedAlarm",
-    {
-      alarmName: "WorkoutTracer-Build-Stage-Failed",
-      metric: new cloudwatch.Metric({
-        namespace: "AWS/CodePipeline",
-        metricName: "FailedActions",
-        dimensionsMap: {
-          PipelineName: pipeline.pipelineName,
-          StageName: "WorkoutTracer-Build",
-        },
-        statistic: "Sum",
-        period: Duration.minutes(5),
-      }),
-      threshold: 0,
-      evaluationPeriods: 1,
-      comparisonOperator:
-        cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
-    },
-  );
-  buildStageAlarm.addAlarmAction(
-    new cloudwatch_actions.SnsAction(alarmTopic),
-  );
+  const buildStageAlarm = new cloudwatch.Alarm(scope, "BuildStageFailedAlarm", {
+    alarmName: "WorkoutTracer-Build-Stage-Failed",
+    metric: new cloudwatch.Metric({
+      namespace: "AWS/CodePipeline",
+      metricName: "FailedActions",
+      dimensionsMap: {
+        PipelineName: pipeline.pipelineName,
+        StageName: "WorkoutTracer-Build",
+      },
+      statistic: "Sum",
+      period: Duration.minutes(5),
+    }),
+    threshold: 0,
+    evaluationPeriods: 1,
+    comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+    treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+  });
+  buildStageAlarm.addAlarmAction(new cloudwatch_actions.SnsAction(alarmTopic));
 }

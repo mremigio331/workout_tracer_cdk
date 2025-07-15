@@ -28,12 +28,17 @@ export class AuthStack extends Stack {
   public readonly userPoolClient: cognito.UserPoolClient;
   public readonly userPoolDomain: cognito.UserPoolDomain;
   public readonly identityPool: cognito.CfnIdentityPool;
-  
 
   constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id, props);
 
-    const { callbackUrls, userTable, stage, escalationEmail, escalationNumber } = props;
+    const {
+      callbackUrls,
+      userTable,
+      stage,
+      escalationEmail,
+      escalationNumber,
+    } = props;
 
     const userAddedTopic = new sns.Topic(this, `UserAddedTopic-${stage}`, {
       topicName: `WorkoutTracer-UserAddedTopic-${stage}`,
@@ -155,7 +160,7 @@ export class AuthStack extends Stack {
           logoutUrls: callbackUrls,
         },
         accessTokenValidity: Duration.hours(24),
-        idTokenValidity: Duration.hours(24),     
+        idTokenValidity: Duration.hours(24),
         refreshTokenValidity: Duration.days(7),
       },
     );
