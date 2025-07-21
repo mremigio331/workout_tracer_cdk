@@ -248,6 +248,8 @@ export class ApiStack extends Stack {
             JSON.stringify({
               requestId: "$context.requestId",
               user_id: "$context.authorizer.claims.sub",
+              email: "$context.authorizer.claims.email",
+              name: "$context.authorizer.claims.name",
               resourcePath: "$context.path",
               httpMethod: "$context.httpMethod",
               ip: "$context.identity.sourceIp",
@@ -255,6 +257,7 @@ export class ApiStack extends Stack {
               errorMessage: "$context.error.message",
               errorResponseType: "$context.error.responseType",
               auth_raw: "$context.authorizer",
+              xrayTraceId: "$context.xrayTraceId",
             }),
           ),
           loggingLevel: apigw.MethodLoggingLevel.INFO,
@@ -328,6 +331,106 @@ export class ApiStack extends Stack {
         authorizer,
       },
     );
+
+    // Log group for LogDivingLambda
+    const logDivingLogGroup = new logs.LogGroup(
+      this,
+      `WorkoutTracer-LogDivingLambdaLogGroup-${stage}`,
+      {
+        logGroupName: `/aws/lambda/WorkoutTracer-LogDivingLambda-${stage}`,
+        retention: logs.RetentionDays.ONE_MONTH,
+      },
+    );
+
+    // LogDiving Lambda
+    const logDivingLambda = new lambda.Function(
+      this,
+      `WorkoutTracer-LogDivingLambda-${stage}`,
+      {
+        functionName: `WorkoutTracer-LogDivingLambda-${stage}`,
+        runtime: lambda.Runtime.PYTHON_3_11,
+        handler: "lambdas.log_diver.lambda_handler",
+        code: lambda.Code.fromAsset(
+          path.join(__dirname, "../../../workout_tracer_api"),
+        ),
+        timeout: Duration.minutes(15),
+        memorySize: 1024,
+        layers: [layer],
+        logGroup: logDivingLogGroup,
+        description: `Log diving and investigation Lambda for ${stage}`,
+        environment: {
+          STAGE: stage,
+        },
+      },
+    );
+
+    // Permissions for Bedrock
+    logDivingLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["bedrock:InvokeModel"],
+        resources: ["*"],
+      }),
+    );
+
+    // Permissions for S3 (update bucket names to lowercase and allow all object actions)
+    logDivingLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:ListBucket",
+          "s3:CreateBucket",
+          "s3:HeadBucket",
+          "s3:DeleteObject",
+          "s3:GetObjectAcl",
+          "s3:PutObjectAcl",
+        ],
+        resources: [
+          `arn:aws:s3:::workouttracer-investigations-${stage.toLowerCase()}`,
+          `arn:aws:s3:::workouttracer-investigations-${stage.toLowerCase()}/*`,
+        ],
+      }),
+    );
+
+    // Permissions for CloudWatch Logs Insights (use wildcard for all streams in log group)
+    logDivingLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "logs:StartQuery",
+          "logs:GetQueryResults",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams",
+          "logs:FilterLogEvents",
+          "logs:GetLogEvents",
+        ],
+        resources: [
+          `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/apigateway/WorkoutTracer-ServiceLogs-${stage}:*`,
+          `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/lambda/WorkoutTracer-ApiLambda-${stage}:*`,
+          `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/lambda/WorkoutTracer-LogDivingLambda-${stage}:*`,
+        ],
+      }),
+    );
+
+    // Allow creating log streams/events in its own log group
+    logDivingLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+        ],
+        resources: [
+          `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/lambda/WorkoutTracer-LogDivingLambda-${stage}:*`,
+        ],
+      }),
+    );
+
+    // If you use KMS encryption for S3/logs, grant decrypt/encrypt
+    kmsKey.grantEncryptDecrypt(logDivingLambda);
 
     addApiMonitoring(this, this.api, stage, escalationEmail, escalationNumber);
   }
