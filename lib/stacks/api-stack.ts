@@ -313,6 +313,37 @@ export class ApiStack extends Stack {
       },
     );
 
+    // Add a /robots.txt resource that returns a static response and does NOT require auth or Lambda
+    const robotsResource = this.api.root.addResource("robots.txt");
+    robotsResource.addMethod(
+      "GET",
+      new apigw.MockIntegration({
+        integrationResponses: [
+          {
+            statusCode: "200",
+            responseTemplates: {
+              "text/plain": "User-agent: *\nDisallow:\n",
+            },
+          },
+        ],
+        passthroughBehavior: apigw.PassthroughBehavior.NEVER,
+        requestTemplates: {
+          "application/json": '{"statusCode": 200}',
+        },
+      }),
+      {
+        methodResponses: [
+          {
+            statusCode: "200",
+            responseModels: {
+              "text/plain": apigw.Model.EMPTY_MODEL,
+            },
+          },
+        ],
+        authorizationType: apigw.AuthorizationType.NONE,
+      },
+    );
+
     const openapiResource = this.api.root.addResource("openapi.json");
     openapiResource.addMethod(
       "GET",
