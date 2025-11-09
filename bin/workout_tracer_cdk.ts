@@ -7,6 +7,7 @@ import { WebsiteStack } from "../lib/stacks/website-stack";
 import { ApiStack } from "../lib/stacks/api-stack";
 import { ApiDnsStack } from "../lib/stacks/api-dns-stack";
 import { WorkoutTracerStravaStack } from "../lib/stacks/strava-stack";
+import { Miles4MannyStack } from "../lib/stacks/miles-4-manny-stack";
 import * as fs from "fs";
 import * as path from "path";
 import { PipelineStack } from "../lib/stacks/pipeline-stack";
@@ -62,6 +63,8 @@ async function main() {
       apiCertificateArn,
       escalationEmail,
       escalationNumber,
+      miles4MannyDomainName,
+      miles4MannyHostedZoneId,
     } = config;
 
     // Database stack
@@ -127,6 +130,13 @@ async function main() {
         userPool: authStack.userPool,
       },
     );
+
+    new Miles4MannyStack(app, `Miles4MannyStack-${stage}`, {
+      env: awsEnv,
+      stage,
+      miles4MannyDomain: miles4MannyDomainName,
+      miles4MannyHostedZoneId: miles4MannyHostedZoneId,
+    });
   }
 }
 

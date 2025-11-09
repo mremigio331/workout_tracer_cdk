@@ -231,10 +231,22 @@ export class ApiStack extends Stack {
         defaultCorsPreflightOptions: {
           allowOrigins:
             stage.toLowerCase() === "prod"
-              ? ["https://workouttracer.com"]
+              ? [
+                  "https://workouttracer.com",
+                  "https://miles4manny.com",
+                  "https://www.miles4manny.com"
+                ]
               : stage.toLowerCase() === "staging"
-                ? ["https://staging.workouttracer.com", "http://localhost:8080"]
-                : ["http://localhost:8080"],
+                ? [
+                    "https://staging.workouttracer.com",
+                    "https://staging.miles4manny.com",
+                    "http://localhost:8080",
+                    "http://localhost:3000"
+                  ]
+                : [
+                    "http://localhost:8080",
+                    "http://localhost:3000"
+                  ],
           allowMethods: apigw.Cors.ALL_METHODS,
           allowHeaders: ["authorization", "content-type"],
           allowCredentials: true,
@@ -280,6 +292,16 @@ export class ApiStack extends Stack {
       "POST",
       new apigw.LambdaIntegration(workoutTracerApi),
       { authorizationType: apigw.AuthorizationType.NONE },
+    );
+
+    // Add /miles4many resource at root, allow unauthenticated GET access
+    const miles4manyResource = stravaResource.addResource("miles4manny");
+    miles4manyResource.addMethod(
+      "GET",
+      new apigw.LambdaIntegration(workoutTracerApi),
+      {
+        authorizationType: apigw.AuthorizationType.NONE,
+      },
     );
 
     // Add /strava/profile/callback POST endpoint with Cognito authorizer
