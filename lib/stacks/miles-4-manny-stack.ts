@@ -195,4 +195,3 @@ export class Miles4MannyStack extends Stack {
     }
   }
 }
-

@@ -4,9 +4,7 @@ import {
   aws_iam as iam,
   aws_logs as logs,
   RemovalPolicy,
-  Duration,
 } from "aws-cdk-lib";
-import * as path from "path";
 
 export function createBuildProject(scope: Stack, role: iam.IRole) {
   return new codebuild.PipelineProject(scope, "WorkoutTracer-BuildProject", {
@@ -39,6 +37,7 @@ export function createBuildProject(scope: Stack, role: iam.IRole) {
             "git clone https://github.com/mremigio331/workout_tracer_cdk.git",
             "git clone https://github.com/mremigio331/workout_tracer_website.git",
             "git clone https://github.com/mremigio331/workout_tracer_api.git",
+            "git clone https://github.com/mremigio331/miles4manny",
             "cd workout_tracer_cdk",
             "npm install",
             "cd ..",
@@ -47,18 +46,22 @@ export function createBuildProject(scope: Stack, role: iam.IRole) {
         pre_build: {
           commands: [
             "ls",
-            'echo "Building website..."',
+            'echo "Building workout tracer website..."',
             "cd workout_tracer_website",
             "npm install",
             'npm run build || npm run build:prod || echo "No build script found"',
+            "cd ..",
+            'echo "Building miles4manny website..."',
+            "cd miles4manny",
+            "npm install",
+            "npm run build",
             "cd ..",
             'echo "Installing CDK dependencies..."',
             "cd workout_tracer_cdk",
             "npm run build",
             "cd ..",
-            'echo "Preparing API Lambda layer..."',
+            'echo "Building Lambda layers..."',
             "cd workout_tracer_api",
-            "ls -al",
             "chmod +x create_lambda_layer.sh",
             "./create_lambda_layer.sh",
             "cd ..",
@@ -74,6 +77,7 @@ export function createBuildProject(scope: Stack, role: iam.IRole) {
           "workout_tracer_api/**/*",
           "workout_tracer_website/**/*",
           "workout_tracer_cdk/**/*",
+          "miles4manny/**/*",
         ],
       },
     }),
@@ -88,6 +92,7 @@ export function createStagingDeployProject(scope: Stack, role: iam.IRole) {
     "ApiStack",
     "ApiDnsStack",
   ];
+  const standaloneStacksToDeploy = ["Miles4MannyStack-Staging"];
   return new codebuild.PipelineProject(
     scope,
     "WorkoutTracer-StagingDeployProject",
@@ -131,7 +136,7 @@ export function createStagingDeployProject(scope: Stack, role: iam.IRole) {
           },
           build: {
             commands: [
-              `cdk deploy ${stackToDeploy.map((stack) => `WorkoutTracer-${stack}-Staging`).join(" ")} --require-approval never`,
+              `cdk deploy ${stackToDeploy.map((stack) => `WorkoutTracer-${stack}-Staging`).join(" ")} ${standaloneStacksToDeploy.join(" ")} --require-approval never`,
             ],
           },
         },
@@ -148,6 +153,7 @@ export function createProdDeployProject(scope: Stack, role: iam.IRole) {
     "ApiStack",
     "ApiDnsStack",
   ];
+  const standaloneStacksToDeploy = ["Miles4MannyStack-Prod"];
   return new codebuild.PipelineProject(
     scope,
     "WorkoutTracer-ProdDeployProject",
@@ -191,7 +197,7 @@ export function createProdDeployProject(scope: Stack, role: iam.IRole) {
           },
           build: {
             commands: [
-              `cdk deploy ${stackToDeploy.map((stack) => `WorkoutTracer-${stack}-Prod`).join(" ")} --require-approval never`,
+              `cdk deploy ${stackToDeploy.map((stack) => `WorkoutTracer-${stack}-Prod`).join(" ")} ${standaloneStacksToDeploy.join(" ")} --require-approval never`,
             ],
           },
         },

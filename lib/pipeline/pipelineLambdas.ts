@@ -6,10 +6,7 @@ import {
 } from "aws-cdk-lib";
 import * as path from "path";
 
-export function createPipelineDeployLambda(
-  scope: Stack,
-  layer: lambda.LayerVersion,
-) {
+export function createPipelineDeployLambda(scope: Stack) {
   return new lambda.Function(scope, `WorkoutTracer-PipelineDeployLambda`, {
     functionName: `WorkoutTracer-PipelineDeployLambda`,
     description: "Lambda function to deploy the Workout Tracer pipeline",
@@ -19,7 +16,6 @@ export function createPipelineDeployLambda(
       path.join(__dirname, "../../../workout_tracer_api"),
     ),
     timeout: Duration.seconds(10),
-    layers: [layer],
     tracing: lambda.Tracing.ACTIVE,
     environment: {
       PIPELINE: "WorkoutTracerPipeline",
@@ -30,7 +26,6 @@ export function createPipelineDeployLambda(
 export function createWebhookAuthorizerLambda(
   scope: Stack,
   githubSecret: secretsmanager.ISecret,
-  layer?: lambda.LayerVersion,
 ) {
   const fn = new lambda.Function(scope, "GitHubWebhookAuthorizer", {
     runtime: lambda.Runtime.PYTHON_3_11,
@@ -42,7 +37,6 @@ export function createWebhookAuthorizerLambda(
     environment: {
       GITHUB_WEBHOOK_SECRET_ARN: githubSecret.secretArn,
     },
-    layers: layer ? [layer] : [],
   });
   githubSecret.grantRead(fn);
   return fn;

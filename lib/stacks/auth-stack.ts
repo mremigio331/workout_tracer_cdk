@@ -60,12 +60,6 @@ export class AuthStack extends Stack {
       },
     );
 
-    const powertoolsLayer = lambda.LayerVersion.fromLayerVersionArn(
-      this,
-      `WorkoutTracer-PowertoolsLayer-${stage}`,
-      `arn:aws:lambda:${this.region}:017000801446:layer:AWSLambdaPowertoolsPythonV2:53`,
-    );
-
     const userEventLogger = new lambda.Function(
       this,
       `WorkoutTracer-UserEventLogger-${stage}`,
@@ -75,10 +69,23 @@ export class AuthStack extends Stack {
         handler: "lambdas.cognito_user_creator.handler",
         code: lambda.Code.fromAsset(
           path.join(__dirname, "../../../workout_tracer_api"),
+          {
+            exclude: [
+              "**/*.ipynb",
+              "**/*.kml",
+              "**/*.zip",
+              "**/__pycache__/**",
+              "**/*.pyc",
+              "notebooks/**",
+              "scratch/**",
+              "ops_tools/**",
+              "*.sh",
+            ],
+          },
         ),
-        tracing: lambda.Tracing.ACTIVE, // Enable X-Ray tracing for Lambda
+        tracing: lambda.Tracing.ACTIVE,
         timeout: Duration.seconds(10),
-        layers: [layer, powertoolsLayer],
+        layers: [layer],
         environment: {
           TABLE_NAME: userTable.tableName,
           POWERTOOLS_LOG_LEVEL: "INFO",

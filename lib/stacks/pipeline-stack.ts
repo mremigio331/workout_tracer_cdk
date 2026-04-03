@@ -12,8 +12,6 @@ import {
   aws_sns as sns,
   aws_apigateway as apigateway,
   aws_lambda as lambda,
-  RemovalPolicy,
-  Duration,
 } from "aws-cdk-lib";
 import * as path from "path";
 
@@ -35,19 +33,6 @@ export class PipelineStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    // Lambda Layer
-    const layer = new lambda.LayerVersion(
-      this,
-      `WorkoutTracer-PipelineStackLayer`,
-      {
-        code: lambda.Code.fromAsset(
-          path.join(__dirname, "../../../workout_tracer_api/lambda_layer.zip"),
-        ),
-        compatibleRuntimes: [lambda.Runtime.PYTHON_3_11],
-        description: `WorkoutTracer-PipelineStackLayer`,
-      },
-    );
-
     // Secrets
     const githubSecret = secretsmanager.Secret.fromSecretNameV2(
       this,
@@ -56,11 +41,10 @@ export class PipelineStack extends Stack {
     );
 
     // Lambda Functions
-    const pipelineDeplyLambda = createPipelineDeployLambda(this, layer);
+    const pipelineDeplyLambda = createPipelineDeployLambda(this);
     const webhookAuthorizerLambda = createWebhookAuthorizerLambda(
       this,
       githubSecret,
-      layer,
     );
 
     // Grant permission to start the pipeline
