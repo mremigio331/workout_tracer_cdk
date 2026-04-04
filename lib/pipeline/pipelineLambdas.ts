@@ -5,6 +5,7 @@ import {
   Duration,
 } from "aws-cdk-lib";
 import * as path from "path";
+import { LAMBDA_ASSET_EXCLUDES } from "../utils/lambdaAssetExcludes";
 
 export function createPipelineDeployLambda(scope: Stack) {
   return new lambda.Function(scope, `WorkoutTracer-PipelineDeployLambda`, {
@@ -14,6 +15,7 @@ export function createPipelineDeployLambda(scope: Stack) {
     handler: "lambdas.pipeline_deployment.handler",
     code: lambda.Code.fromAsset(
       path.join(__dirname, "../../../workout_tracer_api"),
+      { exclude: LAMBDA_ASSET_EXCLUDES },
     ),
     timeout: Duration.seconds(10),
     tracing: lambda.Tracing.ACTIVE,
@@ -32,6 +34,7 @@ export function createWebhookAuthorizerLambda(
     handler: "lambdas.github_auth.handler",
     code: lambda.Code.fromAsset(
       path.join(__dirname, "../../../workout_tracer_api"),
+      { exclude: LAMBDA_ASSET_EXCLUDES },
     ),
     timeout: Duration.seconds(5),
     environment: {

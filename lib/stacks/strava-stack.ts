@@ -16,6 +16,7 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
 import { Construct } from "constructs";
 import * as path from "path";
+import { LAMBDA_ASSET_EXCLUDES } from "../utils/lambdaAssetExcludes";
 
 interface WorkoutTracerStravaStackProps extends StackProps {
   stage: string;
@@ -117,19 +118,7 @@ export class WorkoutTracerStravaStack extends Stack {
         handler: "lambdas.enrich_workout_locations.lambda_handler",
         code: lambda.Code.fromAsset(
           path.join(__dirname, "../../../workout_tracer_api"),
-          {
-            exclude: [
-              "**/*.ipynb",
-              "**/*.kml",
-              "**/*.zip",
-              "**/__pycache__/**",
-              "**/*.pyc",
-              "notebooks/**",
-              "scratch/**",
-              "ops_tools/**",
-              "*.sh",
-            ],
-          },
+          { exclude: LAMBDA_ASSET_EXCLUDES },
         ),
         layers: [liteLayer, heavyLayer],
         timeout: Duration.minutes(15),
@@ -229,19 +218,7 @@ export class WorkoutTracerStravaStack extends Stack {
         handler: "lambdas.batch_update_workouts.lambda_handler",
         code: lambda.Code.fromAsset(
           path.join(__dirname, "../../../workout_tracer_api"),
-          {
-            exclude: [
-              "**/*.ipynb",
-              "**/*.kml",
-              "**/*.zip",
-              "**/__pycache__/**",
-              "**/*.pyc",
-              "notebooks/**",
-              "scratch/**",
-              "ops_tools/**",
-              "*.sh",
-            ],
-          },
+          { exclude: LAMBDA_ASSET_EXCLUDES },
         ),
         layers: [layer],
         timeout: Duration.minutes(15),
@@ -335,19 +312,7 @@ export class WorkoutTracerStravaStack extends Stack {
         handler: "lambdas.strava_onboarding_v2.lambda_handler",
         code: lambda.Code.fromAsset(
           path.join(__dirname, "../../../workout_tracer_api"),
-          {
-            exclude: [
-              "**/*.ipynb",
-              "**/*.kml",
-              "**/*.zip",
-              "**/__pycache__/**",
-              "**/*.pyc",
-              "notebooks/**",
-              "scratch/**",
-              "ops_tools/**",
-              "*.sh",
-            ],
-          },
+          { exclude: LAMBDA_ASSET_EXCLUDES },
         ),
         layers: [layer],
         timeout: Duration.minutes(15),
@@ -433,19 +398,7 @@ export class WorkoutTracerStravaStack extends Stack {
         handler: "lambdas.backfill_location_badges.lambda_handler",
         code: lambda.Code.fromAsset(
           path.join(__dirname, "../../../workout_tracer_api"),
-          {
-            exclude: [
-              "**/*.ipynb",
-              "**/*.kml",
-              "**/*.zip",
-              "**/__pycache__/**",
-              "**/*.pyc",
-              "notebooks/**",
-              "scratch/**",
-              "ops_tools/**",
-              "*.sh",
-            ],
-          },
+          { exclude: LAMBDA_ASSET_EXCLUDES },
         ),
         layers: [layer],
         timeout: Duration.minutes(15),

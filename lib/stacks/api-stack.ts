@@ -12,6 +12,7 @@ import {
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
 import * as path from "path";
+import { LAMBDA_ASSET_EXCLUDES } from "../utils/lambdaAssetExcludes";
 import { addApiMonitoring } from "../monitoring/apiMonitoring";
 
 interface ApiStackProps extends StackProps {
@@ -108,19 +109,7 @@ export class ApiStack extends Stack {
         handler: "app.handler",
         code: lambda.Code.fromAsset(
           path.join(__dirname, "../../../workout_tracer_api"),
-          {
-            exclude: [
-              "**/*.ipynb",
-              "**/*.kml",
-              "**/*.zip",
-              "**/__pycache__/**",
-              "**/*.pyc",
-              "notebooks/**",
-              "scratch/**",
-              "ops_tools/**",
-              "*.sh",
-            ],
-          },
+          { exclude: LAMBDA_ASSET_EXCLUDES },
         ),
         timeout: Duration.seconds(30),
         memorySize: 1024,

@@ -168,7 +168,7 @@ export class Miles4MannyStack extends Stack {
     });
 
     const deploymentSource = s3deploy.Source.asset(
-      path.join(__dirname, "../../../miles_for_manny/dist"),
+      path.join(__dirname, "../../../miles4manny/dist"),
     );
 
     const bucketDeploymentLogGroup = new logs.LogGroup(

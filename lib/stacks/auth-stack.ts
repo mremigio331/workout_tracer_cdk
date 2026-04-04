@@ -10,6 +10,7 @@ import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as path from "path";
+import { LAMBDA_ASSET_EXCLUDES } from "../utils/lambdaAssetExcludes";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as sns from "aws-cdk-lib/aws-sns";
 import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
@@ -69,19 +70,7 @@ export class AuthStack extends Stack {
         handler: "lambdas.cognito_user_creator.handler",
         code: lambda.Code.fromAsset(
           path.join(__dirname, "../../../workout_tracer_api"),
-          {
-            exclude: [
-              "**/*.ipynb",
-              "**/*.kml",
-              "**/*.zip",
-              "**/__pycache__/**",
-              "**/*.pyc",
-              "notebooks/**",
-              "scratch/**",
-              "ops_tools/**",
-              "*.sh",
-            ],
-          },
+          { exclude: LAMBDA_ASSET_EXCLUDES },
         ),
         tracing: lambda.Tracing.ACTIVE,
         timeout: Duration.seconds(10),
