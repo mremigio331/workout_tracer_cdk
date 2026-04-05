@@ -183,14 +183,35 @@ export class WebsiteStack extends Stack {
     );
 
     if (deploymentSource) {
+      // index.html: no-cache so browsers always fetch the latest (which references the new hashed bundle)
       new s3deploy.BucketDeployment(
         this,
-        `WorkoutTracer-WebsiteDeployment-${stage}`,
+        `WorkoutTracer-WebsiteDeployment-Html-${stage}`,
         {
           sources: [deploymentSource],
           destinationBucket: this.siteBucket,
           distribution: this.distribution,
           distributionPaths: ["/*"],
+          include: ["index.html"],
+          cacheControl: [
+            s3deploy.CacheControl.noCache(),
+            s3deploy.CacheControl.noStore(),
+          ],
+        },
+      );
+
+      // Hashed assets (bundle.[hash].js, images, etc.): cache for 1 year since filenames change on every build
+      new s3deploy.BucketDeployment(
+        this,
+        `WorkoutTracer-WebsiteDeployment-Assets-${stage}`,
+        {
+          sources: [deploymentSource],
+          destinationBucket: this.siteBucket,
+          exclude: ["index.html"],
+          cacheControl: [
+            s3deploy.CacheControl.maxAge(Duration.days(365)),
+            s3deploy.CacheControl.immutable(),
+          ],
         },
       );
     }

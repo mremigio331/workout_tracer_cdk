@@ -11,8 +11,11 @@ import {
   aws_cognito as cognito,
   aws_events_targets as targets,
   aws_cloudwatch as cloudwatch,
+  aws_sns as sns,
+  aws_sns_subscriptions as subs,
 } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as cloudwatch_actions from "aws-cdk-lib/aws-cloudwatch-actions";
 import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
 import { Construct } from "constructs";
 import * as path from "path";
@@ -23,6 +26,8 @@ interface WorkoutTracerStravaStackProps extends StackProps {
   userTable: dynamodb.ITable;
   kmsKey: kms.IKey;
   userPool: cognito.UserPool;
+  escalationEmail: string;
+  escalationNumber: string;
 }
 
 export class WorkoutTracerStravaStack extends Stack {
@@ -33,7 +38,25 @@ export class WorkoutTracerStravaStack extends Stack {
   ) {
     super(scope, id, props);
 
-    const { stage, userTable, kmsKey, userPool } = props;
+    const {
+      stage,
+      userTable,
+      kmsKey,
+      userPool,
+      escalationEmail,
+      escalationNumber,
+    } = props;
+
+    const alarmTopic = new sns.Topic(
+      this,
+      `WorkoutTracer-StravaAlarmTopic-${stage}`,
+      {
+        topicName: `WorkoutTracer-StravaAlarmTopic-${stage}`,
+        displayName: `WorkoutTracer Strava Alarm Topic (${stage})`,
+      },
+    );
+    alarmTopic.addSubscription(new subs.EmailSubscription(escalationEmail));
+    alarmTopic.addSubscription(new subs.SmsSubscription(escalationNumber));
 
     const dlq = new sqs.Queue(
       this,
@@ -57,6 +80,25 @@ export class WorkoutTracerStravaStack extends Stack {
         },
       },
     );
+
+    const batcherDlqAlarm = new cloudwatch.Alarm(
+      this,
+      `WorkoutTracer-RateLimitedBatcherDLQAlarm-${stage}`,
+      {
+        alarmName: `WorkoutTracer-RateLimitedBatcherDLQAlarm-${stage}`,
+        metric: dlq.metricApproximateNumberOfMessagesVisible(),
+        threshold: 1,
+        evaluationPeriods: 1,
+        comparisonOperator:
+          cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        alarmDescription: `Rate-limited batcher DLQ has messages — investigate failed Strava batch updates for ${stage}`,
+        actionsEnabled: true,
+      },
+    );
+    batcherDlqAlarm.addAlarmAction(
+      new cloudwatch_actions.SnsAction(alarmTopic),
+    );
+    batcherDlqAlarm.addOkAction(new cloudwatch_actions.SnsAction(alarmTopic));
 
     const layer = new lambda.LayerVersion(
       this,
@@ -179,7 +221,7 @@ export class WorkoutTracerStravaStack extends Stack {
       },
     );
 
-    new cloudwatch.Alarm(
+    const enrichDlqAlarm = new cloudwatch.Alarm(
       this,
       `WorkoutTracer-EnrichWorkoutLocationsDLQAlarm-${stage}`,
       {
@@ -190,8 +232,11 @@ export class WorkoutTracerStravaStack extends Stack {
         comparisonOperator:
           cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
         alarmDescription: `Enrichment DLQ has messages — investigate failed enrichments for ${stage}`,
+        actionsEnabled: true,
       },
     );
+    enrichDlqAlarm.addAlarmAction(new cloudwatch_actions.SnsAction(alarmTopic));
+    enrichDlqAlarm.addOkAction(new cloudwatch_actions.SnsAction(alarmTopic));
 
     enrichWorkoutLocationsLambda.addEventSource(
       new lambdaEventSources.SqsEventSource(enrichQueue, {

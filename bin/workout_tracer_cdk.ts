@@ -128,6 +128,8 @@ async function main() {
         userTable: databaseStack.table,
         kmsKey: api.kmsKey,
         userPool: authStack.userPool,
+        escalationEmail,
+        escalationNumber,
       },
     );
 

@@ -133,6 +133,7 @@ export class ApiStack extends Stack {
           API_DOMAIN_NAME: apiDomainName,
           STRAVA_ONBOARDING_LAMBDA_ARN: `arn:aws:lambda:${this.region}:${this.account}:function:WorkoutTracer-StravaOnboardingLambdaV2-${stage}`,
           ENRICH_WORKOUT_LOCATIONS_LAMBDA_ARN: `arn:aws:lambda:${this.region}:${this.account}:function:WorkoutTracer-EnrichWorkoutLocationsLambda-${stage}`,
+          ENRICH_SQS_QUEUE_URL: `https://sqs.${this.region}.amazonaws.com/${this.account}/WorkoutTracer-EnrichWorkoutLocationsQueue-${stage}.fifo`,
         },
       },
     );
@@ -192,6 +193,16 @@ export class ApiStack extends Stack {
         actions: ["lambda:InvokeFunction"],
         resources: [
           `arn:aws:lambda:${this.region}:${this.account}:function:WorkoutTracer-EnrichWorkoutLocationsLambda-${stage}`,
+        ],
+      }),
+    );
+
+    workoutTracerApi.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["sqs:SendMessage"],
+        resources: [
+          `arn:aws:sqs:${this.region}:${this.account}:WorkoutTracer-EnrichWorkoutLocationsQueue-${stage}.fifo`,
         ],
       }),
     );
