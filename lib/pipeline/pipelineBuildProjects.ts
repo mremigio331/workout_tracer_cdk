@@ -89,8 +89,10 @@ export function createStagingDeployProject(scope: Stack, role: iam.IRole) {
   const stackToDeploy = [
     "DatabaseStack",
     "AuthStack",
+    "WebsiteStack",
     "ApiStack",
     "ApiDnsStack",
+    "RateLimitedBatcherStack",
   ];
   const standaloneStacksToDeploy = ["Miles4MannyStack-Staging"];
   return new codebuild.PipelineProject(
@@ -150,8 +152,10 @@ export function createProdDeployProject(scope: Stack, role: iam.IRole) {
   const stackToDeploy = [
     "DatabaseStack",
     "AuthStack",
+    "WebsiteStack",
     "ApiStack",
     "ApiDnsStack",
+    "RateLimitedBatcherStack",
   ];
   const standaloneStacksToDeploy = ["Miles4MannyStack-Prod"];
   return new codebuild.PipelineProject(
